@@ -1,14 +1,9 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+// Initialize client directly with environment variable
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateProductDetails = async (productName: string) => {
-  if (!apiKey) {
-    console.warn("No API Key found for Gemini");
-    return null;
-  }
-
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",

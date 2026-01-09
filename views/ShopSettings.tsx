@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, Store, Upload, Image as ImageIcon, QrCode } from 'lucide-react';
+import { Save, Store, Image as ImageIcon, QrCode } from 'lucide-react';
 import { ShopDetails } from '../types';
 
 interface ShopSettingsProps {
@@ -10,7 +10,7 @@ interface ShopSettingsProps {
 export const ShopSettings: React.FC<ShopSettingsProps> = ({ shopDetails, onSave }) => {
   const [formData, setFormData] = useState<ShopDetails>(shopDetails);
   const [isSaved, setIsSaved] = useState(false);
-
+  
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
@@ -42,12 +42,13 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({ shopDetails, onSave 
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-6 max-w-4xl mx-auto space-y-8">
       <div className="mb-8">
         <h2 className="text-3xl font-bold text-slate-800">Shop Settings</h2>
-        <p className="text-slate-500 mt-1">Configure your business details, logo, and payment info.</p>
+        <p className="text-slate-500 mt-1">Configure your business details and system connections.</p>
       </div>
 
+      {/* Shop Details Section */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
           <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">

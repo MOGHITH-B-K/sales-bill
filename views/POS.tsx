@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight } from 'lucide-react';
+import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle } from 'lucide-react';
 import { Product, CartItem, CATEGORIES, Order, ShopDetails } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -55,6 +55,14 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
   const addToCart = (product: Product, quantity: number) => {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
+      const currentQtyInCart = existing ? existing.qty : 0;
+      const totalRequested = currentQtyInCart + quantity;
+
+      if (totalRequested > product.stock) {
+        alert(`Cannot add more. Only ${product.stock} items available in stock.`);
+        return prev;
+      }
+
       if (existing) {
         return prev.map(item => 
           item.id === product.id ? { ...item, qty: item.qty + quantity } : item
@@ -68,6 +76,13 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
     const qty = parseInt(newQty);
     if (isNaN(qty) || qty < 1) return;
     
+    // Check stock
+    const product = products.find(p => p.id === id);
+    if (product && qty > product.stock) {
+        alert(`Maximum stock available is ${product.stock}`);
+        return;
+    }
+
     setCart(prev => prev.map(item => 
       item.id === id ? { ...item, qty } : item
     ));
@@ -269,10 +284,14 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
             <div className="bg-white rounded-2xl w-full max-w-sm p-6 shadow-2xl animate-in zoom-in-95 duration-200">
                 <h3 className="text-lg font-bold mb-4">Enter Quantity for {qtyPromptProduct.name}</h3>
+                <div className="mb-4 text-sm text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                   Available in Stock: <span className="font-bold text-slate-700">{qtyPromptProduct.stock}</span>
+                </div>
                 <form onSubmit={confirmQtyAddToCart}>
                     <input 
                         type="number"
                         min="1"
+                        max={qtyPromptProduct.stock}
                         autoFocus
                         className="w-full px-4 py-3 text-lg border border-slate-200 rounded-xl mb-4 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                         value={qtyPromptValue}

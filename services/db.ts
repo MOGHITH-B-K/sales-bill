@@ -1,72 +1,87 @@
-import { openDB, DBSchema } from 'idb';
+import { openDB } from 'idb';
 import { Product, Order, ShopDetails } from '../types';
 
-interface SmartPOSDB extends DBSchema {
-  products: {
-    key: string;
-    value: Product;
-  };
-  orders: {
-    key: string;
-    value: Order;
-  };
-  settings: {
-    key: string;
-    value: ShopDetails;
-  };
-}
-
-const DB_NAME = 'smartpos-db';
+const DB_NAME = 'smart-pos-db';
 const DB_VERSION = 1;
 
-const dbPromise = openDB<SmartPOSDB>(DB_NAME, DB_VERSION, {
-  upgrade(db) {
-    if (!db.objectStoreNames.contains('products')) {
-      db.createObjectStore('products', { keyPath: 'id' });
-    }
-    if (!db.objectStoreNames.contains('orders')) {
-      db.createObjectStore('orders', { keyPath: 'id' });
-    }
-    if (!db.objectStoreNames.contains('settings')) {
-      db.createObjectStore('settings');
-    }
-  },
-});
+// Initialize IndexedDB
+const initDB = async () => {
+  return openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      // Store for Products
+      if (!db.objectStoreNames.contains('products')) {
+        db.createObjectStore('products', { keyPath: 'id' });
+      }
+      // Store for Orders
+      if (!db.objectStoreNames.contains('orders')) {
+        db.createObjectStore('orders', { keyPath: 'id' });
+      }
+      // Store for Settings (we'll use 'id' 'main_details' for the singleton)
+      if (!db.objectStoreNames.contains('settings')) {
+        db.createObjectStore('settings', { keyPath: 'id' });
+      }
+    },
+  });
+};
 
 export const dbService = {
-  // Products
+  
+  // Always true for local DB
+  isConfigured: () => true,
+
+  // --- Products ---
   async getProducts() {
-    return (await dbPromise).getAll('products');
+    const db = await initDB();
+    return await db.getAll('products') as Product[];
   },
+
   async saveProduct(product: Product) {
-    return (await dbPromise).put('products', product);
+    const db = await initDB();
+    await db.put('products', product);
   },
+
   async deleteProduct(id: string) {
-    return (await dbPromise).delete('products', id);
+    const db = await initDB();
+    await db.delete('products', id);
   },
+
   async clearProducts() {
-    return (await dbPromise).clear('products');
+    const db = await initDB();
+    await db.clear('products');
   },
 
-  // Orders
+  // --- Orders ---
   async getOrders() {
-    return (await dbPromise).getAll('orders');
-  },
-  async saveOrder(order: Order) {
-    return (await dbPromise).put('orders', order);
-  },
-  async deleteOrder(id: string) {
-    return (await dbPromise).delete('orders', id);
-  },
-  async clearOrders() {
-    return (await dbPromise).clear('orders');
+    const db = await initDB();
+    return await db.getAll('orders') as Order[];
   },
 
-  // Settings
-  async getShopDetails() {
-    return (await dbPromise).get('settings', 'main_details');
+  async saveOrder(order: Order) {
+    const db = await initDB();
+    await db.put('orders', order);
   },
+
+  async deleteOrder(id: string) {
+    const db = await initDB();
+    await db.delete('orders', id);
+  },
+
+  async clearOrders() {
+    const db = await initDB();
+    await db.clear('orders');
+  },
+
+  // --- Settings ---
+  async getShopDetails() {
+    const db = await initDB();
+    const data = await db.get('settings', 'main_details');
+    return data ? (data as ShopDetails) : null;
+  },
+
   async saveShopDetails(details: ShopDetails) {
-    return (await dbPromise).put('settings', details, 'main_details');
+    const db = await initDB();
+    // We add the ID so it can be stored in the object store
+    const payload = { ...details, id: 'main_details' };
+    await db.put('settings', payload);
   },
 };

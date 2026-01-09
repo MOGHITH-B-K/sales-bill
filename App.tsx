@@ -9,12 +9,12 @@ import { dbService } from './services/db';
 
 // Initial Data for seeding the DB
 const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Cappuccino', price: 250, category: 'Beverages', description: 'Rich espresso with frothy milk' },
-  { id: '2', name: 'Croissant', price: 180, category: 'Snacks', description: 'Buttery flaky pastry' },
-  { id: '3', name: 'Avocado Toast', price: 350, category: 'Food', description: 'Sourdough with fresh avocado' },
-  { id: '4', name: 'Iced Latte', price: 280, category: 'Beverages', description: 'Cold espresso with milk and ice' },
-  { id: '5', name: 'Blueberry Muffin', price: 150, category: 'Snacks', description: 'Freshly baked with berries' },
-  { id: '6', name: 'Green Tea', price: 120, category: 'Beverages', description: 'Organic soothing green tea' },
+  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk' },
+  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry' },
+  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado' },
+  { id: '4', name: 'Iced Latte', price: 280, stock: 45, category: 'Beverages', description: 'Cold espresso with milk and ice' },
+  { id: '5', name: 'Blueberry Muffin', price: 150, stock: 25, category: 'Snacks', description: 'Freshly baked with berries' },
+  { id: '6', name: 'Green Tea', price: 120, stock: 100, category: 'Beverages', description: 'Organic soothing green tea' },
 ];
 
 const INITIAL_SHOP_DETAILS: ShopDetails = {
@@ -64,6 +64,7 @@ const App: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to load data from database", error);
+        setProducts(INITIAL_PRODUCTS);
       } finally {
         setLoading(false);
       }
@@ -100,8 +101,38 @@ const App: React.FC = () => {
 
   // Order Handlers
   const handleSaveOrder = async (order: Order) => {
-    await dbService.saveOrder(order);
-    setOrders(prev => [order, ...prev]);
+    try {
+      // 1. Save the order record
+      await dbService.saveOrder(order);
+      setOrders(prev => [order, ...prev]);
+
+      // 2. Decrement stock for each item
+      const updatedProducts = [...products];
+      
+      for (const item of order.items) {
+        const productIndex = updatedProducts.findIndex(p => p.id === item.id);
+        if (productIndex > -1) {
+          // Calculate new stock, ensuring it doesn't go below 0
+          const currentStock = Number(updatedProducts[productIndex].stock) || 0;
+          const newStock = Math.max(0, currentStock - item.qty);
+          
+          updatedProducts[productIndex] = { 
+            ...updatedProducts[productIndex], 
+            stock: newStock 
+          };
+          
+          // Update individual product in DB to persist stock change
+          await dbService.saveProduct(updatedProducts[productIndex]);
+        }
+      }
+      
+      // Update local state to reflect new stock immediately
+      setProducts(updatedProducts);
+      
+    } catch (error) {
+      console.error("Error processing order:", error);
+      alert("Failed to save order.");
+    }
   };
 
   const handleDeleteOrder = async (id: string) => {

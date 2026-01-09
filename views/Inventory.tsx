@@ -18,6 +18,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({
     name: '',
     price: 0,
+    stock: 0,
     category: 'Beverages',
     description: '',
     image: ''
@@ -26,20 +27,27 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
   const [editId, setEditId] = useState<string | null>(null);
 
   const resetForm = () => {
-    setCurrentProduct({ name: '', price: 0, category: 'Beverages', description: '', image: '' });
+    setCurrentProduct({ name: '', price: 0, stock: 0, category: 'Beverages', description: '', image: '' });
     setEditId(null);
     setIsModalOpen(false);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!currentProduct.name || !currentProduct.price) return;
+    if (!currentProduct.name || currentProduct.price === undefined) return;
+
+    // Ensure stock is a number
+    const processedProduct = {
+      ...currentProduct,
+      stock: Number(currentProduct.stock) || 0,
+      price: Number(currentProduct.price) || 0,
+    };
 
     if (editId) {
-      await onUpdateProduct({ ...currentProduct, id: editId } as Product);
+      await onUpdateProduct({ ...processedProduct, id: editId } as Product);
     } else {
       const newProduct: Product = {
-        ...currentProduct as Product,
+        ...processedProduct as Product,
         id: Date.now().toString(),
       };
       await onAddProduct(newProduct);
@@ -107,7 +115,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-800">Inventory Management</h2>
-          <p className="text-slate-500 mt-1">Manage your product catalog, images, and prices (₹).</p>
+          <p className="text-slate-500 mt-1">Manage your product catalog, stock, and prices.</p>
         </div>
         <div className="flex gap-3 w-full sm:w-auto">
             <button 
@@ -133,6 +141,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Image</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Name</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Price (₹)</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Description</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
@@ -141,7 +150,7 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 ? (
                 <tr>
-                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={7} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
                             <Package size={32} className="opacity-20" />
                             <span>Inventory is empty. Add a product to get started.</span>
@@ -163,6 +172,15 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
                 <td className="px-6 py-4">
                   <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md border border-slate-200">
                     {product.category}
+                  </span>
+                </td>
+                <td className="px-6 py-4">
+                  <span className={`px-2 py-1 text-xs rounded-md font-medium ${
+                    product.stock <= 5 
+                      ? 'bg-red-50 text-red-600 border border-red-100' 
+                      : 'bg-green-50 text-green-600 border border-green-100'
+                  }`}>
+                    {product.stock} units
                   </span>
                 </td>
                 <td className="px-6 py-4 font-medium text-slate-800">₹{product.price.toFixed(2)}</td>
@@ -273,20 +291,33 @@ export const Inventory: React.FC<InventoryProps> = ({ products, onAddProduct, on
                     placeholder="0.00"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
-                  <div className="relative">
-                    <input
-                      list="category-suggestions"
-                      value={currentProduct.category}
-                      onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})}
-                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-                      placeholder="Select or Type..."
-                    />
-                    <datalist id="category-suggestions">
-                      {CATEGORIES.map(c => <option key={c} value={c} />)}
-                    </datalist>
-                  </div>
+                 <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Stock Quantity</label>
+                  <input 
+                    type="number" 
+                    min="0"
+                    required
+                    value={currentProduct.stock}
+                    onChange={(e) => setCurrentProduct({...currentProduct, stock: parseInt(e.target.value)})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    placeholder="0"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Category</label>
+                <div className="relative">
+                  <input
+                    list="category-suggestions"
+                    value={currentProduct.category}
+                    onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})}
+                    className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    placeholder="Select or Type..."
+                  />
+                  <datalist id="category-suggestions">
+                    {CATEGORIES.map(c => <option key={c} value={c} />)}
+                  </datalist>
                 </div>
               </div>
 
