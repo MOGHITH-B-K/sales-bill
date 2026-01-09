@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle } from 'lucide-react';
+import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package } from 'lucide-react';
 import { Product, CartItem, CATEGORIES, Order, ShopDetails } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -10,9 +10,10 @@ interface POSProps {
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   onSaveOrder: (order: Order) => void;
   shopDetails: ShopDetails;
+  onManageStock: () => void;
 }
 
-export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, shopDetails }) => {
+export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, shopDetails, onManageStock }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [manualQtyMode, setManualQtyMode] = useState(false);
@@ -119,7 +120,16 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="mb-6">
           <div className="flex justify-between items-center mb-4">
-             <h2 className="text-2xl font-bold text-slate-800">Menu</h2>
+             <div className="flex items-center gap-3">
+                 <h2 className="text-2xl font-bold text-slate-800">Menu</h2>
+                 <button 
+                   onClick={onManageStock}
+                   className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
+                   title="Go to Stock Management"
+                 >
+                   <Package size={14} /> Manage Stock
+                 </button>
+             </div>
              <button 
                 onClick={() => setManualQtyMode(!manualQtyMode)}
                 className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"

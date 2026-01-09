@@ -28,7 +28,7 @@ const INITIAL_SHOP_DETAILS: ShopDetails = {
 };
 
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>('pos');
+  const [view, setView] = useState<ViewState>('inventory');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
   const [shopDetails, setShopDetails] = useState<ShopDetails>(INITIAL_SHOP_DETAILS);
@@ -197,7 +197,7 @@ const App: React.FC = () => {
               }`}
             >
               <LayoutDashboard size={22} />
-              <span className="font-medium hidden lg:block">Inventory</span>
+              <span className="font-medium hidden lg:block">Stock Management</span>
             </button>
 
             <button 
@@ -244,6 +244,7 @@ const App: React.FC = () => {
                 setCart={setCart} 
                 onSaveOrder={handleSaveOrder} 
                 shopDetails={shopDetails} 
+                onManageStock={() => setView('inventory')}
             />
           )}
           {view === 'inventory' && (
