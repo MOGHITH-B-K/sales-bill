@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo } from 'react';
 import { Order, ShopDetails } from '../types';
 import { Printer, Calendar, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
@@ -153,26 +152,19 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
                      margin: 0;
                      size: auto; 
                  }
-                 html, body {
-                     height: auto;
-                     margin: 0 !important;
-                     padding: 0 !important;
-                     background: white;
-                 }
-                 body * { visibility: hidden; height: 0; overflow: hidden; }
                  
-                 #z-report-print, #z-report-print * { 
-                     visibility: visible !important; 
-                     height: auto !important; 
-                     overflow: visible !important; 
+                 body {
+                     visibility: hidden;
+                     background: white;
                  }
                  
                  #z-report-print {
+                     visibility: visible;
                      position: absolute;
                      left: 0;
                      top: 0;
                      width: 100%;
-                     max-width: 80mm; /* Constraint for A4 PDF to look like receipt */
+                     max-width: 80mm;
                      margin: 0;
                      padding: 5mm;
                      font-family: 'Courier New', Courier, monospace;
@@ -180,6 +172,11 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
                      line-height: 1.2;
                      z-index: 99999;
                  }
+                 
+                 #z-report-print * {
+                    visibility: visible;
+                 }
+                 
                  .dashed-line { border-top: 1px dashed black; margin: 10px 0; }
              }
          `}</style>

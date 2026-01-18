@@ -1,4 +1,3 @@
-
 import React, { useEffect } from 'react';
 import { X, Printer, Download } from 'lucide-react';
 import { Order, ShopDetails } from '../types';
@@ -100,45 +99,54 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                 /* Reset standard page margins */
                 @page { 
                     margin: 0; 
-                    size: auto; /* Allows content to dictate height (continuous roll) */
+                    size: auto;
                 }
                 
                 html, body {
-                    height: auto;
+                    height: auto !important;
+                    overflow: visible !important;
                     margin: 0 !important;
                     padding: 0 !important;
-                    background: white;
+                    background: white !important;
                 }
 
                 /* Hide everything by default */
-                body * {
-                    visibility: hidden;
-                    height: 0; 
-                    overflow: hidden;
+                body > * {
+                    display: none !important;
                 }
 
-                /* Only show the receipt container and its children */
-                #printable-receipt, #printable-receipt * {
-                    visibility: visible !important;
+                /* Show only the receipt modal wrapper (but not its overlay background) */
+                body > div:has(#printable-receipt), 
+                body > #root > div:has(#printable-receipt) {
+                    display: block !important;
+                    position: static !important;
+                    background: white !important;
+                    padding: 0 !important;
+                    margin: 0 !important;
                     height: auto !important;
-                    overflow: visible !important;
+                    width: 100% !important;
                 }
 
-                /* Position the receipt absolutely at top left */
+                /* Specifically target the receipt container */
                 #printable-receipt {
+                    display: block !important;
+                    visibility: visible !important;
                     position: absolute;
                     left: 0;
                     top: 0;
-                    width: 100%; /* Fills the paper width selected in print dialog */
-                    max-width: 80mm; /* Ensures proper strip width on A4 paper/PDF */
+                    width: 100%;
                     margin: 0;
-                    padding: 5mm; /* Minimal padding for thermal printers */
+                    padding: 5mm;
                     font-family: 'Courier New', Courier, monospace;
                     font-size: 12px;
                     line-height: 1.2;
                     color: black;
                     background-color: white;
                     z-index: 99999;
+                }
+
+                #printable-receipt * {
+                    visibility: visible !important;
                 }
 
                 /* Utilities */

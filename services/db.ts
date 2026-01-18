@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Product, Order, ShopDetails, Customer } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -29,7 +28,8 @@ export const dbService = {
     const url = (supabase as any).supabaseUrl || "";
     const key = (supabase as any).supabaseKey || "";
     
-    const isPlaceholder = url.includes('placeholder') || key.startsWith('sb_publishable_NBY5lR6y');
+    // It is configured only if it's NOT the placeholder values we set in supabaseClient.ts
+    const isPlaceholder = url === 'https://placeholder.supabase.co' || key === 'placeholder-key';
     const isMissing = !url || !key;
 
     return !isMissing && !isPlaceholder;
@@ -42,6 +42,8 @@ export const dbService = {
   ): RealtimeChannel | null {
     if (!this.isConfigured()) return null;
 
+    console.log(`Attempting to subscribe to ${tableName}...`);
+
     // Create a channel for the specific table
     return supabase
       .channel(`public:${tableName}`)
@@ -49,13 +51,16 @@ export const dbService = {
         'postgres_changes',
         { event: '*', schema: 'public', table: tableName },
         (payload) => {
+            console.log(`Realtime update received for ${tableName}:`, payload.eventType);
             // Pass the raw payload to the callback
             callback(payload);
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            console.log(`Subscribed to ${tableName} changes`);
+            console.log(`Successfully connected to ${tableName} stream.`);
+        } else if (status === 'CHANNEL_ERROR') {
+            console.error(`Failed to connect to ${tableName} stream.`);
         }
       });
   },

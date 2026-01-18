@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users } from 'lucide-react';
+import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users, Cloud } from 'lucide-react';
 import { POS } from './views/POS';
 import { Inventory } from './views/Inventory';
 import { History } from './views/History';
@@ -39,6 +39,7 @@ const App: React.FC = () => {
   const [shopDetails, setShopDetails] = useState<ShopDetails>(INITIAL_SHOP_DETAILS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isCloudConnected, setIsCloudConnected] = useState(false);
   
   // State to hold customer details when editing an order
   const [editingCustomer, setEditingCustomer] = useState<{name: string, phone: string, place: string} | null>(null);
@@ -51,21 +52,24 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       try {
+        const connected = dbService.isConfigured();
+        setIsCloudConnected(connected);
+
         // Load Products
         const dbProducts = await dbService.getProducts();
         
-        if (dbProducts.length === 0 && !dbService.isConfigured()) {
+        if (dbProducts.length === 0 && !connected) {
             // Seed initial products if DB is empty and local
             for (const p of INITIAL_PRODUCTS) {
               await dbService.saveProduct(p);
             }
             setProducts(INITIAL_PRODUCTS);
         } else {
-            // Ensure compatibility
+            // Ensure compatibility and initial sort
             const normalizedProducts = dbProducts.map(p => ({
                 ...p,
                 productType: p.productType || 'sale'
-            }));
+            })).sort((a, b) => a.name.localeCompare(b.name));
             setProducts(normalizedProducts);
         }
 
@@ -88,7 +92,7 @@ const App: React.FC = () => {
         }
 
         // --- SETUP REALTIME SUBSCRIPTIONS ---
-        if (dbService.isConfigured()) {
+        if (connected) {
             const handleRealtime = (payload: any, setter: React.Dispatch<React.SetStateAction<any[]>>, idField = 'id', sortFn?: (a: any, b: any) => number) => {
                 const { eventType, new: newRecord, old: oldRecord } = payload;
                 
@@ -108,16 +112,19 @@ const App: React.FC = () => {
                 });
             };
 
+            // Subscribe to Products - Sort by name to prevent jumping
             productSub = dbService.subscribeToChanges('products', (payload) => {
-                handleRealtime(payload, setProducts);
+                handleRealtime(payload, setProducts, 'id', (a, b) => a.name.localeCompare(b.name));
             });
 
+            // Subscribe to Orders - Sort by date descending
             orderSub = dbService.subscribeToChanges('orders', (payload) => {
                 handleRealtime(payload, setOrders, 'id', (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
             });
 
+            // Subscribe to Customers - Sort by name
             customerSub = dbService.subscribeToChanges('customers', (payload) => {
-                handleRealtime(payload, setCustomers);
+                handleRealtime(payload, setCustomers, 'id', (a, b) => a.name.localeCompare(b.name));
             });
         }
 
@@ -146,7 +153,7 @@ const App: React.FC = () => {
         if (exists) {
             return prev.map(p => p.id === product.id ? product : p);
         }
-        return [...prev, product];
+        return [...prev, product].sort((a, b) => a.name.localeCompare(b.name));
     });
   };
 
@@ -259,7 +266,7 @@ const App: React.FC = () => {
   // Customer Handlers
   const handleAddCustomer = async (customer: Customer) => {
     await dbService.saveCustomer(customer);
-    setCustomers(prev => [...prev, customer]);
+    setCustomers(prev => [...prev, customer].sort((a, b) => a.name.localeCompare(b.name)));
   };
 
   const handleUpdateCustomer = async (customer: Customer) => {
