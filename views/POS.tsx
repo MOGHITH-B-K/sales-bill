@@ -424,7 +424,11 @@ export const POS: React.FC<POSProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
-                    {item.productType === 'rental' && <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded flex items-center gap-0.5"><Clock size={8}/> Rental</span>}
+                    {item.productType === 'rental' && (
+                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded flex items-center gap-0.5 whitespace-nowrap">
+                            <Clock size={8}/> {item.rentalDuration || 'Rental'}
+                        </span>
+                    )}
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     <span>₹{item.price.toFixed(2)}</span>

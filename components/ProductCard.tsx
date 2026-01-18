@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Plus, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
 import { Product } from '../types';
@@ -49,8 +48,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
         
         {/* Rental Badge */}
         {isRental && !isOutOfStock && (
-            <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm flex items-center gap-1">
-                <Clock size={10} /> {product.rentalDuration ? product.rentalDuration : 'Rental'}
+            <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm flex items-center gap-1 max-w-[85%]">
+                <Clock size={10} className="flex-shrink-0" /> 
+                <span className="truncate">
+                    {product.rentalDuration ? `Rental: ${product.rentalDuration}` : 'Rental'}
+                </span>
             </div>
         )}
 
@@ -93,6 +95,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
              </span>
          )}
       </div>
+
+      {/* Extra visibility for rental duration */}
+      {isRental && product.rentalDuration && (
+        <div className="mb-2 text-xs text-purple-700 font-medium bg-purple-50 px-2 py-1 rounded border border-purple-100 flex items-center gap-1.5">
+            <Clock size={12} /> 
+            <span>Duration: {product.rentalDuration}</span>
+        </div>
+      )}
 
       <p className="text-xs text-slate-500 line-clamp-2 mb-3 flex-grow">
         {product.description || 'No description available.'}

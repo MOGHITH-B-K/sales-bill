@@ -200,7 +200,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                 <tr key={`${item.id}-${index}`}>
                   <td className="py-1 text-black">
                       {item.name}
-                      {item.productType === 'rental' && <span className="text-[9px] ml-1">(RENTAL)</span>}
+                      {item.productType === 'rental' && <span className="text-[9px] ml-1">({item.rentalDuration || 'RENTAL'})</span>}
                   </td>
                   <td className="py-1 text-center text-black">{item.qty}</td>
                   <td className="py-1 text-right font-medium text-black">{(item.price * item.qty).toFixed(2)}</td>

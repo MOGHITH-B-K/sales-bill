@@ -36,8 +36,11 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
     
     dailyOrders.forEach(order => {
       order.items.forEach(item => {
-        const existing = itemMap.get(item.name) || { qty: 0, revenue: 0 };
-        itemMap.set(item.name, {
+        // Create unique key for rentals with different durations
+        const key = item.rentalDuration ? `${item.name} (${item.rentalDuration})` : item.name;
+        
+        const existing = itemMap.get(key) || { qty: 0, revenue: 0 };
+        itemMap.set(key, {
           qty: existing.qty + item.qty,
           revenue: existing.revenue + (item.price * item.qty) // Excl tax for item breakdown
         });
