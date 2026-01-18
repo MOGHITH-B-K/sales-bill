@@ -195,6 +195,15 @@ export const POS: React.FC<POSProps> = ({
     ));
   };
 
+  const updateItemPrice = (id: string, newPrice: string) => {
+    const price = parseFloat(newPrice);
+    if (isNaN(price) || price < 0) return;
+    
+    setCart(prev => prev.map(item => 
+      item.id === id ? { ...item, price } : item
+    ));
+  };
+
   const removeFromCart = (id: string) => {
     setCart(prev => prev.filter(item => item.id !== id));
   };
@@ -504,7 +513,17 @@ export const POS: React.FC<POSProps> = ({
                     <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
-                    <span>₹{item.price.toFixed(2)}</span>
+                    <div className="flex items-center gap-1 group/price">
+                      <span className="text-slate-400">₹</span>
+                      <input 
+                        type="number" 
+                        step="0.01"
+                        value={item.price}
+                        onChange={(e) => updateItemPrice(item.id, e.target.value)}
+                        className="w-16 bg-transparent border-b border-transparent hover:border-slate-300 focus:border-blue-500 outline-none text-slate-600 transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                        title="Edit individual item amount"
+                      />
+                    </div>
                     {shopDetails.taxEnabled && <span className="text-[10px] bg-slate-100 px-1 rounded">Tax: {item.taxRate || 0}%</span>}
                   </div>
                 </div>
