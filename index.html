@@ -13,6 +13,36 @@
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+      /* Global Print Styles for POS Receipts */
+      @media print {
+        body * {
+          visibility: hidden;
+        }
+        .print-only-section, .print-only-section * {
+          visibility: visible;
+        }
+        .print-only-section {
+          position: absolute;
+          left: 0;
+          top: 0;
+          width: 100%;
+          margin: 0;
+          padding: 0;
+          background: white;
+          color: black;
+        }
+        /* Hide all non-print elements explicitly to prevent layout gaps */
+        .no-print {
+          display: none !important;
+        }
+        
+        /* Reset margins for thermal printers */
+        @page {
+          margin: 0;
+          size: auto;
+        }
+      }
     </style>
     <script>
       // Polyfill for process.env to prevent ReferenceError in browser-only environments

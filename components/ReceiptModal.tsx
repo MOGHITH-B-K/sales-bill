@@ -13,101 +13,19 @@ interface ReceiptModalProps {
 export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, onClose, autoPrint = false }) => {
   
   const handlePrint = () => {
-    const receiptContent = document.getElementById('printable-receipt');
-    if (!receiptContent) return;
-
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    // Append to body
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Receipt</title>
-            <script src="https://cdn.tailwindcss.com"></script>
-            <style>
-              /* Thermal Printer Optimizations */
-              @page { 
-                  margin: 0;
-                  size: auto; 
-              }
-              body { 
-                margin: 0; 
-                padding: 5mm; 
-                background: white; 
-                font-family: 'Courier New', Courier, monospace; 
-                color: black;
-              }
-              /* Utility overrides for print */
-              .dashed-line { border-top: 1px dashed black !important; margin: 10px 0; }
-              img { max-width: 100%; height: auto; -webkit-print-color-adjust: exact; }
-              
-              /* Ensure text is black */
-              * { color: black !important; }
-              
-              /* Hide scrollbars */
-              ::-webkit-scrollbar { display: none; }
-            </style>
-          </head>
-          <body>
-            ${receiptContent.innerHTML}
-            <script>
-              // Wait for Tailwind and images to load
-              window.onload = () => {
-                setTimeout(() => {
-                  try {
-                    window.print();
-                    // Notify parent to remove iframe (optional, but good for cleanup)
-                    window.parent.postMessage('print-complete', '*');
-                  } catch (e) { console.error(e); }
-                }, 800);
-              }
-            </script>
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      // Cleanup mechanism
-      const cleanup = () => {
-        if (document.body.contains(iframe)) {
-             document.body.removeChild(iframe);
-        }
-        window.removeEventListener('message', messageHandler);
-      };
-
-      const messageHandler = (event: MessageEvent) => {
-          if (event.data === 'print-complete') {
-              // We can set a timeout to remove it, as print dialog blocks JS execution in some browsers
-              // The message is sent BEFORE print dialog opens usually, or effectively when logic runs
-              // Removing iframe immediately might break print in some browsers.
-              // Safe bet: remove after a long delay or on next print.
-              setTimeout(cleanup, 2000); 
-          }
-      };
-      
-      window.addEventListener('message', messageHandler);
-      
-      // Fallback cleanup
-      setTimeout(cleanup, 60000); 
-    }
+    // Simple window.print() combined with @media print in index.html is the most robust method
+    // It uses the already rendered DOM, ensuring styles (Tailwind) are exactly as seen.
+    window.print();
   };
 
   // Automatically trigger print if autoPrint is true
   useEffect(() => {
     if (autoPrint) {
-      handlePrint();
+      // Small timeout to ensure DOM is fully ready
+      const timer = setTimeout(() => {
+        handlePrint();
+      }, 500);
+      return () => clearTimeout(timer);
     }
   }, [autoPrint]);
 
@@ -115,9 +33,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
     const element = document.getElementById('printable-receipt');
     if (element) {
         const originalStyle = element.style.cssText;
+        // Optimization for screenshot capture
         element.style.background = 'white';
         element.style.padding = '20px'; 
         element.style.width = '350px'; 
+        element.style.margin = '0 auto';
         
         try {
             const canvas = await html2canvas(element, {
@@ -144,11 +64,11 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
   const subTotal = order.total - (order.taxTotal || 0);
 
   return (
-    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 no-print">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
-        {/* Header */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-white shrink-0">
+        {/* Header - Hidden during print via no-print class */}
+        <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-white shrink-0 no-print">
           <h3 className="font-bold text-lg text-slate-800">Transaction Complete</h3>
           <div className="flex gap-2">
              <button 
@@ -170,9 +90,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
           </div>
         </div>
 
-        {/* Printable Area */}
-        <div className="overflow-y-auto bg-white flex-1 p-8">
-            <div id="printable-receipt" className="max-w-[300px] mx-auto bg-white">
+        {/* Printable Area - Has print-only-section class */}
+        <div className="overflow-y-auto bg-white flex-1 p-8 print-container">
+            <div id="printable-receipt" className="max-w-[300px] mx-auto bg-white print-only-section">
                 <div className="text-center mb-4">
                     {shopDetails.logo && (
                         <div className="flex justify-center mb-2">
@@ -184,7 +104,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                     {shopDetails.phone && <p className="text-[10px] text-black mt-1">Tel: {shopDetails.phone}</p>}
                 </div>
 
-                <div className="dashed-line border-t border-dashed border-slate-400 my-2"></div>
+                <div className="border-t border-dashed border-slate-400 my-2"></div>
 
                 <div className="flex justify-between text-xs text-black mb-1 font-mono">
                     <span>Order #:</span>
@@ -204,7 +124,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                     </div>
                 )}
 
-                <div className="dashed-line border-t border-dashed border-slate-400 my-2"></div>
+                <div className="border-t border-dashed border-slate-400 my-2"></div>
 
                 <table className="w-full text-xs font-mono mb-2">
                     <thead className="text-black border-b border-black">
@@ -228,7 +148,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                     </tbody>
                 </table>
 
-                <div className="dashed-line border-t border-dashed border-slate-400 my-2"></div>
+                <div className="border-t border-dashed border-slate-400 my-2"></div>
 
                 <div className="space-y-1 font-mono text-xs text-black">
                     <div className="flex justify-between">

@@ -145,42 +145,7 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
       </div>
 
       {/* Print View - Z-Report Structure */}
-      <div id="z-report-print" className="hidden print:block font-mono text-black p-0">
-         <style>{`
-             @media print {
-                 @page { 
-                     margin: 0;
-                     size: auto; 
-                 }
-                 
-                 body {
-                     visibility: hidden;
-                     background: white;
-                 }
-                 
-                 #z-report-print {
-                     visibility: visible;
-                     position: absolute;
-                     left: 0;
-                     top: 0;
-                     width: 100%;
-                     max-width: 80mm;
-                     margin: 0;
-                     padding: 5mm;
-                     font-family: 'Courier New', Courier, monospace;
-                     font-size: 12px;
-                     line-height: 1.2;
-                     z-index: 99999;
-                 }
-                 
-                 #z-report-print * {
-                    visibility: visible;
-                 }
-                 
-                 .dashed-line { border-top: 1px dashed black; margin: 10px 0; }
-             }
-         `}</style>
-         
+      <div id="z-report-print" className="hidden print:block font-mono text-black p-0 print-only-section">
          <div className="text-center mb-4">
              {shopDetails.logo && <img src={shopDetails.logo} className="h-12 mx-auto mb-2 grayscale object-contain" />}
              <h1 className="font-bold text-lg uppercase">{shopDetails.name}</h1>
@@ -188,7 +153,7 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
              <p className="text-xs">{shopDetails.address}</p>
          </div>
 
-         <div className="dashed-line"></div>
+         <div className="border-t border-dashed border-black my-2"></div>
          
          <div className="flex justify-between text-xs mb-1">
              <span>Date:</span>
@@ -199,7 +164,7 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
              <span>{new Date().toLocaleTimeString()}</span>
          </div>
 
-         <div className="dashed-line"></div>
+         <div className="border-t border-dashed border-black my-2"></div>
 
          <div className="mb-2">
              <div className="flex justify-between text-sm font-bold">
@@ -216,7 +181,7 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
              </div>
          </div>
 
-         <div className="dashed-line"></div>
+         <div className="border-t border-dashed border-black my-2"></div>
 
          <div className="text-xs font-bold mb-2 uppercase">Category Breakdown</div>
          {/* Simple Item Breakdown for print */}
@@ -239,7 +204,7 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
              </tbody>
          </table>
 
-         <div className="dashed-line"></div>
+         <div className="border-t border-dashed border-black my-2"></div>
          <div className="text-center text-xs mt-4">
              *** END OF REPORT ***
          </div>
