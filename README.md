@@ -25,7 +25,7 @@ SmartPOS is a feature-rich, local-first Point of Sale (POS) application designed
 
 ## 🛠️ Tech Stack
 
-- **Frontend:** React (v19), TypeScript, Tailwind CSS
+- **Frontend:** React (v18), TypeScript, Tailwind CSS
 - **Icons:** Lucide React
 - **Database:** IndexedDB (via `idb` library)
 - **AI Integration:** Google Gemini API (@google/genai)
@@ -53,10 +53,38 @@ SmartPOS is a feature-rich, local-first Point of Sale (POS) application designed
    npm run dev
    ```
 
-5. **Build for Production:**
+## 🚀 Deployment
+
+This application is a **Static Web Application**. It runs entirely in the browser. You can deploy it to any static hosting provider like Vercel, Netlify, or GitHub Pages.
+
+### Option 1: Vercel (Recommended)
+1. Push your code to a GitHub repository.
+2. Go to [Vercel](https://vercel.com) and sign up/login.
+3. Click **"Add New Project"** and select your repository.
+4. In the **"Environment Variables"** section:
+   - Key: `API_KEY`
+   - Value: Your Google Gemini API Key.
+5. Click **"Deploy"**.
+
+### Option 2: Netlify
+1. Push your code to GitHub.
+2. Go to [Netlify](https://netlify.com) and sign up/login.
+3. Click **"Add new site"** > **"Import from Git"**.
+4. Select your repository.
+5. Under **"Site settings"** > **"Environment variables"**:
+   - Add a variable named `API_KEY` with your Gemini API key.
+6. Click **"Deploy site"**.
+
+### Option 3: Manual Build
+You can build the project locally and host the files manually.
+1. Run the build command:
    ```bash
    npm run build
    ```
+2. This creates a `dist` folder containing `index.html` and assets.
+3. Upload the contents of the `dist` folder to any standard web server (Apache, Nginx, AWS S3, etc.).
+
+**Note:** Since this is a client-side application, your API Key will be embedded in the browser code. Ensure you set restrictions on your API Key in the Google AI Studio console (e.g., restrict by HTTP Referrer to your domain) to prevent unauthorized usage.
 
 ## 📋 Usage Tips
 
