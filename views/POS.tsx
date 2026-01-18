@@ -524,7 +524,12 @@ export const POS: React.FC<POSProps> = ({
 
       {/* Receipt Modal */}
       {lastOrder && (
-        <ReceiptModal order={lastOrder} shopDetails={shopDetails} onClose={() => setLastOrder(null)} />
+        <ReceiptModal 
+          order={lastOrder} 
+          shopDetails={shopDetails} 
+          onClose={() => setLastOrder(null)} 
+          autoPrint={true}
+        />
       )}
     </div>
   );

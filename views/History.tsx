@@ -131,7 +131,12 @@ export const History: React.FC<HistoryProps> = ({ orders, onDeleteOrder, onClear
       </div>
 
       {selectedOrder && (
-        <ReceiptModal order={selectedOrder} shopDetails={shopDetails} onClose={() => setSelectedOrder(null)} />
+        <ReceiptModal 
+          order={selectedOrder} 
+          shopDetails={shopDetails} 
+          onClose={() => setSelectedOrder(null)} 
+          autoPrint={false}
+        />
       )}
     </div>
   );

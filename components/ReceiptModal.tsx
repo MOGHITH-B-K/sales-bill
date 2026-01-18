@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { X, Printer, Download } from 'lucide-react';
 import { Order, ShopDetails } from '../types';
 import html2canvas from 'html2canvas';
@@ -8,14 +8,25 @@ interface ReceiptModalProps {
   order: Order | null;
   shopDetails: ShopDetails;
   onClose: () => void;
+  autoPrint?: boolean;
 }
 
-export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, onClose }) => {
-  if (!order) return null;
-
+export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, onClose, autoPrint = false }) => {
+  
   const handlePrint = () => {
     window.print();
   };
+
+  // Automatically trigger print if autoPrint is true
+  useEffect(() => {
+    if (autoPrint) {
+      // Small delay to ensure DOM is fully rendered and images (like logo/QR) are loaded
+      const timer = setTimeout(() => {
+        handlePrint();
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [autoPrint]);
 
   const handleDownload = async () => {
     const element = document.getElementById('printable-receipt');
@@ -34,7 +45,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
             });
             
             const link = document.createElement('a');
-            link.download = `Receipt_${order.id}.png`;
+            link.download = `Receipt_${order?.id || 'doc'}.png`;
             link.href = canvas.toDataURL('image/png');
             link.click();
         } catch (err) {
@@ -45,6 +56,8 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
         }
     }
   };
+
+  if (!order) return null;
 
   const subTotal = order.total - (order.taxTotal || 0);
 
