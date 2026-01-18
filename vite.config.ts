@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
-        external: ['html2canvas']
+        // Bundling enabled for all dependencies
       }
     }
   };
