@@ -2,6 +2,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize client with environment variable, following guidelines
+// Note: GoogleGenAI constructor must use a named parameter object: { apiKey: string }
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
 export const generateProductDetails = async (productName: string) => {
@@ -28,6 +29,7 @@ export const generateProductDetails = async (productName: string) => {
       }
     });
 
+    // Access .text property directly, do not call as a function
     const text = response.text;
     if (!text) return null;
 

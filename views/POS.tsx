@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History, Clock, Plus, X, Sparkles, Loader2, Tag, Upload, Image as ImageIcon } from 'lucide-react';
 import { Product, CartItem, Order, ShopDetails, Customer } from '../types';
@@ -55,8 +56,7 @@ export const POS: React.FC<POSProps> = ({
       name: '',
       price: 0,
       stock: 0,
-      category: 'Beverages',
-      productType: 'sale'
+      category: 'Beverages'
   });
   const [isLoadingAI, setIsLoadingAI] = useState(false);
 
@@ -268,7 +268,6 @@ export const POS: React.FC<POSProps> = ({
           price: Number(quickAddProduct.price),
           stock: Number(quickAddProduct.stock),
           category: quickAddProduct.category || 'General',
-          productType: quickAddProduct.productType || 'sale',
           taxRate: shopDetails.defaultTaxRate, // Use default
           minStockLevel: 5,
           image: quickAddProduct.image,
@@ -281,7 +280,7 @@ export const POS: React.FC<POSProps> = ({
       addToCart(newProduct, 1);
       
       // Reset and close
-      setQuickAddProduct({ name: '', price: 0, stock: 0, category: 'Beverages', productType: 'sale' });
+      setQuickAddProduct({ name: '', price: 0, stock: 0, category: 'Beverages' });
       setIsQuickAddOpen(false);
   };
   
@@ -503,11 +502,6 @@ export const POS: React.FC<POSProps> = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
-                    {item.productType === 'rental' && (
-                        <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded flex items-center gap-0.5 whitespace-nowrap">
-                            <Clock size={8}/> {item.rentalDuration || 'Rental'}
-                        </span>
-                    )}
                   </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     <span>₹{item.price.toFixed(2)}</span>
