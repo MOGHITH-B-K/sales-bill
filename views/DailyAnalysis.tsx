@@ -54,7 +54,79 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
   }, [dailyOrders]);
 
   const handlePrint = () => {
-    window.print();
+     const content = document.getElementById('z-report-print');
+     if (!content) return;
+
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      doc.open();
+      doc.write(`
+        <html>
+          <head>
+            <title>Z-Report-${selectedDate}</title>
+            <style>
+              body { margin: 0; padding: 10px; font-family: 'Courier New', monospace; color: black; background: white; }
+              .print-wrapper { max-width: 300px; margin: 0 auto; }
+              
+              h1, p, div { margin: 0; padding: 0; }
+              
+              .text-center { text-align: center; }
+              .text-right { text-align: right; }
+              .text-left { text-align: left; }
+              .flex { display: flex; }
+              .justify-between { justify-content: space-between; }
+              .font-bold { font-weight: bold; }
+              .uppercase { text-transform: uppercase; }
+              
+              .w-full { width: 100%; }
+              .mx-auto { margin-left: auto; margin-right: auto; }
+              
+              .border-t { border-top: 1px solid black; }
+              .border-dashed { border-style: dashed; }
+              .border-black { border-color: black; }
+              
+              .text-lg { font-size: 18px; }
+              .text-sm { font-size: 14px; }
+              .text-xs { font-size: 12px; }
+              
+              .mb-1 { margin-bottom: 4px; }
+              .mb-2 { margin-bottom: 8px; }
+              .mb-4 { margin-bottom: 16px; }
+              .mt-1 { margin-top: 4px; }
+              .mt-4 { margin-top: 16px; }
+              .pb-1 { padding-bottom: 4px; }
+              .my-2 { margin-top: 8px; margin-bottom: 8px; }
+              
+              table { width: 100%; border-collapse: collapse; }
+              img { max-width: 100%; height: auto; }
+              .grayscale { filter: grayscale(100%); }
+            </style>
+          </head>
+          <body>
+            <div class="print-wrapper">
+              ${content.innerHTML}
+            </div>
+          </body>
+        </html>
+      `);
+      doc.close();
+
+      setTimeout(() => {
+        iframe.contentWindow?.focus();
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+            document.body.removeChild(iframe);
+        }, 1000);
+      }, 500);
+    }
   };
 
   return (
@@ -144,70 +216,71 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
          </table>
       </div>
 
-      {/* Print View - Z-Report Structure */}
-      <div id="z-report-print" className="hidden print:block font-mono text-black p-0 print-only-section">
-         <div className="text-center mb-4">
-             {shopDetails.logo && <img src={shopDetails.logo} className="h-12 mx-auto mb-2 grayscale object-contain" />}
-             <h1 className="font-bold text-lg uppercase">{shopDetails.name}</h1>
-             <p className="text-xs">Z-REPORT (Day End)</p>
-             <p className="text-xs">{shopDetails.address}</p>
-         </div>
+      {/* Print View - Z-Report Structure - Hidden from screen */}
+      <div className="hidden">
+        <div id="z-report-print">
+            <div className="text-center mb-4">
+                {shopDetails.logo && <img src={shopDetails.logo} className="h-12 mx-auto mb-2 grayscale object-contain" />}
+                <h1 className="font-bold text-lg uppercase">{shopDetails.name}</h1>
+                <p className="text-xs">Z-REPORT (Day End)</p>
+                <p className="text-xs">{shopDetails.address}</p>
+            </div>
 
-         <div className="border-t border-dashed border-black my-2"></div>
-         
-         <div className="flex justify-between text-xs mb-1">
-             <span>Date:</span>
-             <span>{selectedDate}</span>
-         </div>
-         <div className="flex justify-between text-xs mb-1">
-             <span>Printed At:</span>
-             <span>{new Date().toLocaleTimeString()}</span>
-         </div>
+            <div className="border-t border-dashed border-black my-2"></div>
+            
+            <div className="flex justify-between text-xs mb-1">
+                <span>Date:</span>
+                <span>{selectedDate}</span>
+            </div>
+            <div className="flex justify-between text-xs mb-1">
+                <span>Printed At:</span>
+                <span>{new Date().toLocaleTimeString()}</span>
+            </div>
 
-         <div className="border-t border-dashed border-black my-2"></div>
+            <div className="border-t border-dashed border-black my-2"></div>
 
-         <div className="mb-2">
-             <div className="flex justify-between text-sm font-bold">
-                 <span>Total Sales (Gross)</span>
-                 <span>₹{stats.totalSales.toFixed(2)}</span>
-             </div>
-             <div className="flex justify-between text-xs mt-1">
-                 <span>Total Orders</span>
-                 <span>{stats.orderCount}</span>
-             </div>
-             <div className="flex justify-between text-xs mt-1">
-                 <span>Avg Ticket</span>
-                 <span>₹{stats.avgOrder.toFixed(2)}</span>
-             </div>
-         </div>
+            <div className="mb-2">
+                <div className="flex justify-between text-sm font-bold">
+                    <span>Total Sales (Gross)</span>
+                    <span>₹{stats.totalSales.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                    <span>Total Orders</span>
+                    <span>{stats.orderCount}</span>
+                </div>
+                <div className="flex justify-between text-xs mt-1">
+                    <span>Avg Ticket</span>
+                    <span>₹{stats.avgOrder.toFixed(2)}</span>
+                </div>
+            </div>
 
-         <div className="border-t border-dashed border-black my-2"></div>
+            <div className="border-t border-dashed border-black my-2"></div>
 
-         <div className="text-xs font-bold mb-2 uppercase">Category Breakdown</div>
-         {/* Simple Item Breakdown for print */}
-         <table className="w-full text-xs">
-             <thead>
-                 <tr>
-                     <th className="text-left pb-1">Item</th>
-                     <th className="text-right pb-1">Qty</th>
-                     <th className="text-right pb-1">Amt</th>
-                 </tr>
-             </thead>
-             <tbody>
-                {stats.itemBreakdown.map((item, i) => (
-                    <tr key={i}>
-                        <td className="pb-1">{item.name.substring(0, 15)}</td>
-                        <td className="text-right pb-1">{item.qty}</td>
-                        <td className="text-right pb-1">{item.revenue.toFixed(0)}</td>
+            <div className="text-xs font-bold mb-2 uppercase">Category Breakdown</div>
+            <table className="w-full text-xs">
+                <thead>
+                    <tr>
+                        <th className="text-left pb-1">Item</th>
+                        <th className="text-right pb-1">Qty</th>
+                        <th className="text-right pb-1">Amt</th>
                     </tr>
-                ))}
-             </tbody>
-         </table>
+                </thead>
+                <tbody>
+                    {stats.itemBreakdown.map((item, i) => (
+                        <tr key={i}>
+                            <td className="pb-1">{item.name.substring(0, 15)}</td>
+                            <td className="text-right pb-1">{item.qty}</td>
+                            <td className="text-right pb-1">{item.revenue.toFixed(0)}</td>
+                        </tr>
+                    ))}
+                </tbody>
+            </table>
 
-         <div className="border-t border-dashed border-black my-2"></div>
-         <div className="text-center text-xs mt-4">
-             *** END OF REPORT ***
-         </div>
+            <div className="border-t border-dashed border-black my-2"></div>
+            <div className="text-center text-xs mt-4">
+                *** END OF REPORT ***
+            </div>
+        </div>
       </div>
 
     </div>

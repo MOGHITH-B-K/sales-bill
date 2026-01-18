@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock } from 'lucide-react';
 import { Product } from '../types';
@@ -45,10 +44,7 @@ export const Inventory: React.FC<InventoryProps> = ({
 
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Derive categories strictly from existing products. 
-  // This allows "deleting" a category by simply removing/editing all products in it.
   const availableCategories = Array.from(new Set(products.map(p => p.category))).sort();
-  // Ensure we always have at least one category for the dropdown if list is empty
   const dropdownCategories = availableCategories.length > 0 ? availableCategories : ['General'];
 
   const resetForm = () => {
@@ -93,7 +89,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   const handleEdit = (product: Product) => {
     setCurrentProduct(product);
     setEditId(product.id);
-    setIsCustomCategory(false); // Default to dropdown, let them switch if they want
+    setIsCustomCategory(false); 
     setIsModalOpen(true);
   };
 
@@ -123,14 +119,13 @@ export const Inventory: React.FC<InventoryProps> = ({
     }
   };
 
-  // CSV Export Logic
   const handleExportCSV = () => {
     if (products.length === 0) return alert("No products to export.");
     
     const headers = ["ID", "Name", "Type", "Price", "Stock", "Category", "Description", "TaxRate", "MinStockLevel", "Duration"];
     const rows = products.map(p => [
         p.id,
-        `"${(p.name || '').replace(/"/g, '""')}"`, // Escape quotes
+        `"${(p.name || '').replace(/"/g, '""')}"`,
         p.productType || 'sale',
         p.price,
         p.stock,
@@ -154,7 +149,6 @@ export const Inventory: React.FC<InventoryProps> = ({
     document.body.removeChild(link);
   };
 
-  // Helper to parse CSV lines respecting quotes
   const parseCSVLine = (text: string): string[] => {
     const result: string[] = [];
     let cell = '';
@@ -171,22 +165,21 @@ export const Inventory: React.FC<InventoryProps> = ({
             cell += char;
         }
     }
-    result.push(cell); // Push last cell
+    result.push(cell); 
     return result;
   };
 
-  // CSV Import Logic
   const handleImportCSV = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
-    reader.onload = async (event) => {
-        const text = event.target?.result;
+    // Replaced event param with direct reader usage to safely handle types
+    reader.onload = async () => {
+        const text = reader.result;
         if (typeof text !== 'string') return;
 
         const lines = text.split(/\r\n|\n/);
-        // Skip header
         const dataLines = lines.slice(1);
         
         let count = 0;
@@ -195,17 +188,13 @@ export const Inventory: React.FC<InventoryProps> = ({
             
             const parts = parseCSVLine(line);
             
-            // Expected length check, allow some flexibility
             if (parts.length < 4) continue;
 
-            // Remove surrounding quotes if they exist after splitting
             const clean = (val: string | undefined) => val ? val.replace(/^"|"$/g, '').replace(/""/g, '"').trim() : '';
 
-            // Handle legacy CSVs without Type column by checking index
             let type: 'sale' | 'rental' = 'sale';
             let name, price, stock, category, description, taxRate, minStockLevel, rentalDuration;
 
-            // If we have 10 columns (newest format)
             if (parts.length >= 10) {
                  name = clean(parts[1]);
                  type = (clean(parts[2]).toLowerCase() === 'rental') ? 'rental' : 'sale';
@@ -217,7 +206,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                  minStockLevel = parseInt(parts[8] || '0');
                  rentalDuration = clean(parts[9]);
             } else if (parts.length >= 9) {
-                // Previous format with Type but no duration
                 name = clean(parts[1]);
                 type = (clean(parts[2]).toLowerCase() === 'rental') ? 'rental' : 'sale';
                 price = parseFloat(parts[3] || '0');
@@ -227,7 +215,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                 taxRate = parseFloat(parts[7] || '0');
                 minStockLevel = parseInt(parts[8] || '0');
             } else {
-                // Legacy format (no type column)
                 name = clean(parts[1]);
                 price = parseFloat(parts[2] || '0');
                 stock = parseInt(parts[3] || '0');
@@ -239,7 +226,7 @@ export const Inventory: React.FC<InventoryProps> = ({
             
             if (name && !isNaN(price)) {
                 const newProduct: Product = {
-                    id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                    id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
                     name,
                     price,
                     stock: isNaN(stock) ? 0 : stock,
@@ -286,7 +273,6 @@ export const Inventory: React.FC<InventoryProps> = ({
     }
   };
 
-  // Category Management Logic
   const deleteCategory = async (categoryToDelete: string) => {
     const productsInCat = products.filter(p => p.category === categoryToDelete);
     
@@ -294,7 +280,6 @@ export const Inventory: React.FC<InventoryProps> = ({
         const confirmMsg = `There are ${productsInCat.length} products in "${categoryToDelete}".\n\nTo delete this category, these products must be moved to "Uncategorized" or another category.`;
         if(!window.confirm(confirmMsg)) return;
 
-        // Move to default 'Other' or first available
         const fallbackCategory = 'Other'; 
         
         for (const p of productsInCat) {
@@ -322,7 +307,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                 <ListFilter size={18} /> <span className="hidden sm:inline">Categories</span>
             </button>
 
-            {/* Import Button */}
             <div className="relative">
                 <input 
                     type="file" 
@@ -337,7 +321,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                 </button>
             </div>
 
-            {/* Export Button */}
             <button 
                 onClick={handleExportCSV}
                 className="px-4 py-2.5 rounded-xl border border-green-200 text-green-600 font-medium hover:bg-green-50 transition-colors flex items-center gap-2"
@@ -452,7 +435,6 @@ export const Inventory: React.FC<InventoryProps> = ({
         </table>
       </div>
 
-      {/* Product Add/Edit Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
@@ -489,7 +471,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                 </div>
               </div>
 
-              {/* Product Type Selection */}
               <div>
                  <label className="block text-sm font-medium text-slate-700 mb-2">Product Type</label>
                  <div className="flex gap-4">
@@ -631,7 +612,6 @@ export const Inventory: React.FC<InventoryProps> = ({
         </div>
       )}
 
-      {/* Category Manager Modal */}
       {isCategoryManagerOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
              <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
