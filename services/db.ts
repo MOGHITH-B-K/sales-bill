@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Product, Order, ShopDetails, Customer } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -10,6 +9,7 @@ const LOCAL_STORAGE_KEYS = {
   SETTINGS: 'settings'
 };
 
+// Helper for local storage
 const getLocal = (key: string) => {
   try {
     const item = localStorage.getItem(key);
@@ -26,8 +26,9 @@ export const dbService = {
   isConfigured: () => {
     const url = (supabase as any).supabaseUrl || "";
     const key = (supabase as any).supabaseKey || "";
-    const isPlaceholder = url === 'https://placeholder.supabase.co' || !url.includes('supabase.co');
-    return url && key && !isPlaceholder;
+    const isPlaceholder = url === 'https://placeholder.supabase.co' || key === 'placeholder-key';
+    const isMissing = !url || !key;
+    return !isMissing && !isPlaceholder;
   },
 
   subscribeToTables(handlers: Record<string, (payload: any) => void>): RealtimeChannel | null {
@@ -38,7 +39,9 @@ export const dbService = {
             const table = payload.table;
             if (handlers[table]) handlers[table](payload);
         })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') console.log('Connected to real-time changes.');
+      });
     return channel;
   },
 
@@ -46,40 +49,34 @@ export const dbService = {
     supabase.removeChannel(channel);
   },
 
+  // --- Products ---
   async getProducts() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
-    const { data, error } = await supabase.from('products').select('*').order('name');
-    if (error) {
-      console.warn("DB Fetch Error, falling back to local:", error);
-      return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
-    }
+    const { data, error } = await supabase.from('products').select('*');
+    if (error) return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     return data as Product[];
   },
 
   async saveProduct(product: Product) {
-    // 1. Update Local Cache first for speed
+    // Always update local storage as a mirror/cache for persistence
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     const index = products.findIndex(p => p.id === product.id);
     if (index >= 0) products[index] = product;
     else products.push(product);
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products);
 
-    // 2. Verified Cloud Save
     if (this.isConfigured()) {
       const { error } = await supabase.from('products').upsert(product);
-      if (error) {
-        console.error("Cloud Save Failed:", error);
-        throw new Error("Database connection failed. Item saved locally only.");
-      }
+      if (error) console.error("Cloud save failed, local copy kept:", error.message);
     }
   },
 
   async deleteProduct(id: string) {
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products.filter(p => p.id !== id));
+
     if (this.isConfigured()) {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      await supabase.from('products').delete().eq('id', id);
     }
   },
 
@@ -90,9 +87,10 @@ export const dbService = {
     }
   },
 
+  // --- Orders ---
   async getOrders() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
-    const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
+    const { data, error } = await supabase.from('orders').select('*');
     if (error) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
     return data as Order[];
   },
@@ -103,12 +101,15 @@ export const dbService = {
       const numId = parseInt(order.id, 10);
       return !isNaN(numId) && numId > max ? numId : max;
     }, 0);
+
     if (!this.isConfigured()) return (maxLocal + 1).toString();
+
     const { data } = await supabase.from('orders').select('id');
     const maxCloud = (data || []).reduce((max, item: any) => {
       const numId = parseInt(item.id, 10);
       return !isNaN(numId) && numId > max ? numId : max;
     }, 0);
+
     return (Math.max(maxLocal, maxCloud) + 1).toString();
   },
 
@@ -116,9 +117,9 @@ export const dbService = {
     const orders = getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
     orders.push(order);
     setLocal(LOCAL_STORAGE_KEYS.ORDERS, orders);
+
     if (this.isConfigured()) {
-      const { error } = await supabase.from('orders').upsert(order);
-      if (error) throw error;
+      await supabase.from('orders').upsert(order);
     }
   },
 
@@ -137,6 +138,7 @@ export const dbService = {
     }
   },
 
+  // --- Customers ---
   async getCustomers() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.CUSTOMERS) as Customer[];
     const { data, error } = await supabase.from('customers').select('*');
@@ -150,6 +152,7 @@ export const dbService = {
     if (index >= 0) customers[index] = customer;
     else customers.push(customer);
     setLocal(LOCAL_STORAGE_KEYS.CUSTOMERS, customers);
+
     if (this.isConfigured()) {
       await supabase.from('customers').upsert(customer);
     }
@@ -170,6 +173,7 @@ export const dbService = {
     }
   },
 
+  // --- Settings ---
   async getShopDetails() {
     const localSettings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS);
     if (!this.isConfigured()) return localSettings?.main_details || null;
@@ -182,6 +186,7 @@ export const dbService = {
     const settings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS) || {};
     settings.main_details = payload;
     setLocal(LOCAL_STORAGE_KEYS.SETTINGS, settings);
+
     if (this.isConfigured()) {
       await supabase.from('settings').upsert(payload);
     }

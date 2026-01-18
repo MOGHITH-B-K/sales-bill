@@ -1,12 +1,14 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
+
+// Initialize client with environment variable, following guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
 
 export const generateProductDetails = async (productName: string) => {
   if (!process.env.API_KEY) {
-    console.error("API Key is missing.");
+    console.error("API Key is missing. Please check your environment variables.");
     return null;
   }
-
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
   try {
     const response = await ai.models.generateContent({
@@ -28,7 +30,11 @@ export const generateProductDetails = async (productName: string) => {
 
     const text = response.text;
     if (!text) return null;
-    return JSON.parse(text);
+
+    // Clean potential markdown code blocks if the model returns them despite responseMimeType
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Gemini generation error:", error);
     return null;
