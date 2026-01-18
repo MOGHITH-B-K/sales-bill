@@ -31,10 +31,14 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
   const handleDownload = async () => {
     const element = document.getElementById('printable-receipt');
     if (element) {
-        // Temporarily adjust style for clean capture
+        // Temporarily adjust style for clean capture to match 80mm thermal width
         const originalStyle = element.style.cssText;
         element.style.background = 'white';
-        element.style.padding = '20px';
+        element.style.padding = '10px'; // minimal padding for image
+        // 80mm is approx 302px at 96dpi. Setting ~300px ensures it looks like the receipt.
+        element.style.width = '300px'; 
+        element.style.maxWidth = '300px';
+        element.style.position = 'static'; // Reset positioning for capture
         
         try {
             const canvas = await html2canvas(element, {
@@ -93,35 +97,59 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
           <style>
             {`
               @media print {
-                @page { margin: 0; size: auto; }
-                body { background-color: white; }
-                /* Hide everything */
-                body * { visibility: hidden; height: 0; overflow: hidden; }
-                
-                /* Show receipt */
-                #printable-receipt, #printable-receipt * { 
-                    visibility: visible; 
-                    height: auto; 
-                    overflow: visible;
+                /* Reset standard page margins */
+                @page { 
+                    margin: 0; 
+                    size: auto; /* Allows content to dictate height (continuous roll) */
                 }
                 
-                /* Position receipt at top-left */
-                #printable-receipt { 
-                  position: absolute; 
-                  left: 0; 
-                  top: 0; 
-                  width: 100%;
-                  max-width: 80mm; /* Standard Thermal width constraint */
-                  padding: 10px 5px;
-                  margin: 0;
-                  font-family: 'Courier New', Courier, monospace;
-                  color: black;
-                  background-color: white;
-                  z-index: 9999;
+                html, body {
+                    height: auto;
+                    margin: 0 !important;
+                    padding: 0 !important;
+                    background: white;
                 }
-                
+
+                /* Hide everything by default */
+                body * {
+                    visibility: hidden;
+                    height: 0; 
+                    overflow: hidden;
+                }
+
+                /* Only show the receipt container and its children */
+                #printable-receipt, #printable-receipt * {
+                    visibility: visible !important;
+                    height: auto !important;
+                    overflow: visible !important;
+                }
+
+                /* Position the receipt absolutely at top left */
+                #printable-receipt {
+                    position: absolute;
+                    left: 0;
+                    top: 0;
+                    width: 100%; /* Fills the paper width selected in print dialog */
+                    max-width: 80mm; /* Ensures proper strip width on A4 paper/PDF */
+                    margin: 0;
+                    padding: 5mm; /* Minimal padding for thermal printers */
+                    font-family: 'Courier New', Courier, monospace;
+                    font-size: 12px;
+                    line-height: 1.2;
+                    color: black;
+                    background-color: white;
+                    z-index: 99999;
+                }
+
+                /* Utilities */
                 .no-print { display: none !important; }
-                .dashed-line { border-top: 1px dashed black !important; margin: 8px 0; }
+                .dashed-line { border-top: 1px dashed black !important; margin: 5px 0; }
+                
+                /* Ensure images print */
+                img { 
+                    -webkit-print-color-adjust: exact; 
+                    print-color-adjust: exact; 
+                }
               }
             `}
           </style>

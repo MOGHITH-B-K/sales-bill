@@ -146,23 +146,43 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
       <div id="z-report-print" className="hidden print:block font-mono text-black p-0">
          <style>{`
              @media print {
-                 @page { margin: 0; }
-                 body * { visibility: hidden; }
-                 #z-report-print, #z-report-print * { visibility: visible; }
+                 @page { 
+                     margin: 0;
+                     size: auto; 
+                 }
+                 html, body {
+                     height: auto;
+                     margin: 0 !important;
+                     padding: 0 !important;
+                     background: white;
+                 }
+                 body * { visibility: hidden; height: 0; overflow: hidden; }
+                 
+                 #z-report-print, #z-report-print * { 
+                     visibility: visible !important; 
+                     height: auto !important; 
+                     overflow: visible !important; 
+                 }
+                 
                  #z-report-print {
                      position: absolute;
                      left: 0;
                      top: 0;
-                     width: 100%; /* Matches printer width usually managed by OS dialog */
-                     max-width: 80mm; /* Force narrow layout for preview */
-                     padding: 10px;
+                     width: 100%;
+                     max-width: 80mm; /* Constraint for A4 PDF to look like receipt */
+                     margin: 0;
+                     padding: 5mm;
+                     font-family: 'Courier New', Courier, monospace;
+                     font-size: 12px;
+                     line-height: 1.2;
+                     z-index: 99999;
                  }
                  .dashed-line { border-top: 1px dashed black; margin: 10px 0; }
              }
          `}</style>
          
          <div className="text-center mb-4">
-             {shopDetails.logo && <img src={shopDetails.logo} className="h-12 mx-auto mb-2 grayscale" />}
+             {shopDetails.logo && <img src={shopDetails.logo} className="h-12 mx-auto mb-2 grayscale object-contain" />}
              <h1 className="font-bold text-lg uppercase">{shopDetails.name}</h1>
              <p className="text-xs">Z-REPORT (Day End)</p>
              <p className="text-xs">{shopDetails.address}</p>
