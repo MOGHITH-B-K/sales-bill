@@ -1,6 +1,6 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock } from 'lucide-react';
 import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
 
@@ -38,7 +38,9 @@ export const Inventory: React.FC<InventoryProps> = ({
     description: '',
     image: '',
     taxRate: defaultTaxRate,
-    minStockLevel: 5
+    minStockLevel: 5,
+    productType: 'sale',
+    rentalDuration: ''
   });
 
   const [editId, setEditId] = useState<string | null>(null);
@@ -50,7 +52,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   const dropdownCategories = availableCategories.length > 0 ? availableCategories : ['General'];
 
   const resetForm = () => {
-    setCurrentProduct({ name: '', price: 0, stock: 0, category: dropdownCategories[0], description: '', image: '', taxRate: defaultTaxRate, minStockLevel: 5 });
+    setCurrentProduct({ name: '', price: 0, stock: 0, category: dropdownCategories[0], description: '', image: '', taxRate: defaultTaxRate, minStockLevel: 5, productType: 'sale', rentalDuration: '' });
     setEditId(null);
     setIsModalOpen(false);
     setRedirectAfterSave(false);
@@ -66,7 +68,9 @@ export const Inventory: React.FC<InventoryProps> = ({
       stock: Number(currentProduct.stock) || 0,
       price: Number(currentProduct.price) || 0,
       taxRate: Number(currentProduct.taxRate) || 0,
-      minStockLevel: Number(currentProduct.minStockLevel) || 5
+      minStockLevel: Number(currentProduct.minStockLevel) || 5,
+      productType: currentProduct.productType || 'sale',
+      rentalDuration: currentProduct.productType === 'rental' ? (currentProduct.rentalDuration || '') : ''
     };
 
     if (editId) {
@@ -123,16 +127,18 @@ export const Inventory: React.FC<InventoryProps> = ({
   const handleExportCSV = () => {
     if (products.length === 0) return alert("No products to export.");
     
-    const headers = ["ID", "Name", "Price", "Stock", "Category", "Description", "TaxRate", "MinStockLevel"];
+    const headers = ["ID", "Name", "Type", "Price", "Stock", "Category", "Description", "TaxRate", "MinStockLevel", "Duration"];
     const rows = products.map(p => [
         p.id,
         `"${(p.name || '').replace(/"/g, '""')}"`, // Escape quotes
+        p.productType || 'sale',
         p.price,
         p.stock,
         `"${(p.category || 'Other').replace(/"/g, '""')}"`,
         `"${(p.description || '').replace(/"/g, '""')}"`,
         p.taxRate || 0,
-        p.minStockLevel || 5
+        p.minStockLevel || 5,
+        `"${(p.rentalDuration || '').replace(/"/g, '""')}"`
     ]);
     
     const csvContent = "data:text/csv;charset=utf-8," 
@@ -195,10 +201,41 @@ export const Inventory: React.FC<InventoryProps> = ({
             // Remove surrounding quotes if they exist after splitting
             const clean = (val: string | undefined) => val ? val.replace(/^"|"$/g, '').replace(/""/g, '"').trim() : '';
 
-            const name = clean(parts[1]);
-            const price = parseFloat(parts[2] || '0');
-            const stock = parseInt(parts[3] || '0');
-            const category = clean(parts[4]) || 'Other';
+            // Handle legacy CSVs without Type column by checking index
+            let type: 'sale' | 'rental' = 'sale';
+            let name, price, stock, category, description, taxRate, minStockLevel, rentalDuration;
+
+            // If we have 10 columns (newest format)
+            if (parts.length >= 10) {
+                 name = clean(parts[1]);
+                 type = (clean(parts[2]).toLowerCase() === 'rental') ? 'rental' : 'sale';
+                 price = parseFloat(parts[3] || '0');
+                 stock = parseInt(parts[4] || '0');
+                 category = clean(parts[5]) || 'Other';
+                 description = clean(parts[6]);
+                 taxRate = parseFloat(parts[7] || '0');
+                 minStockLevel = parseInt(parts[8] || '0');
+                 rentalDuration = clean(parts[9]);
+            } else if (parts.length >= 9) {
+                // Previous format with Type but no duration
+                name = clean(parts[1]);
+                type = (clean(parts[2]).toLowerCase() === 'rental') ? 'rental' : 'sale';
+                price = parseFloat(parts[3] || '0');
+                stock = parseInt(parts[4] || '0');
+                category = clean(parts[5]) || 'Other';
+                description = clean(parts[6]);
+                taxRate = parseFloat(parts[7] || '0');
+                minStockLevel = parseInt(parts[8] || '0');
+            } else {
+                // Legacy format (no type column)
+                name = clean(parts[1]);
+                price = parseFloat(parts[2] || '0');
+                stock = parseInt(parts[3] || '0');
+                category = clean(parts[4]) || 'Other';
+                description = clean(parts[5]);
+                taxRate = parseFloat(parts[6] || '0');
+                minStockLevel = parseInt(parts[7] || '0');
+            }
             
             if (name && !isNaN(price)) {
                 const newProduct: Product = {
@@ -207,9 +244,11 @@ export const Inventory: React.FC<InventoryProps> = ({
                     price,
                     stock: isNaN(stock) ? 0 : stock,
                     category,
-                    description: clean(parts[5]),
-                    taxRate: parseFloat(parts[6] || '0') || defaultTaxRate,
-                    minStockLevel: parseInt(parts[7] || '0') || 5
+                    description,
+                    taxRate: taxRate || defaultTaxRate,
+                    minStockLevel: minStockLevel || 5,
+                    productType: type,
+                    rentalDuration: rentalDuration || ''
                 };
                 await onAddProduct(newProduct);
                 count++;
@@ -312,7 +351,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                 className="px-4 py-2.5 rounded-xl border border-red-200 text-red-600 font-medium hover:bg-red-50 transition-colors flex items-center gap-2"
                 title="Delete ALL Products"
             >
-                <Trash2 size={18} />
+                <Trash2 size={18} /> <span className="hidden sm:inline">Delete All</span>
             </button>
             <button 
             onClick={() => { resetForm(); setIsModalOpen(true); }}
@@ -329,6 +368,7 @@ export const Inventory: React.FC<InventoryProps> = ({
             <tr>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock Status</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Price (Tax)</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
@@ -337,7 +377,7 @@ export const Inventory: React.FC<InventoryProps> = ({
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 ? (
                 <tr>
-                    <td colSpan={5} className="px-6 py-12 text-center text-slate-400">
+                    <td colSpan={6} className="px-6 py-12 text-center text-slate-400">
                         <div className="flex flex-col items-center gap-2">
                             <Package size={32} className="opacity-20" />
                             <span>No products yet. Click "Add New" or "Import".</span>
@@ -348,6 +388,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                 const limit = product.minStockLevel || 5;
                 const isOutOfStock = product.stock <= 0;
                 const isLowStock = product.stock > 0 && product.stock <= limit;
+                const isRental = product.productType === 'rental';
                 
                 return (
                   <tr key={product.id} className={`transition-colors group ${isOutOfStock ? 'bg-red-50/50 hover:bg-red-50' : isLowStock ? 'bg-orange-50/50 hover:bg-orange-50' : 'hover:bg-slate-50'}`}>
@@ -359,6 +400,20 @@ export const Inventory: React.FC<InventoryProps> = ({
                     </td>
                     <td className="px-6 py-4">
                       <span className="px-2 py-1 bg-slate-100 text-slate-600 text-xs rounded-md border border-slate-200">{product.category}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                        {isRental ? (
+                            <div className="flex flex-col items-start gap-1">
+                                <span className="inline-flex items-center gap-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded-md border border-purple-200">
+                                    <Clock size={12} /> Rental
+                                </span>
+                                {product.rentalDuration && <span className="text-[10px] text-purple-600 font-medium ml-1">{product.rentalDuration}</span>}
+                            </div>
+                        ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-700 text-xs font-semibold rounded-md border border-blue-200">
+                                <Tag size={12} /> Sale
+                            </span>
+                        )}
                     </td>
                     <td className="px-6 py-4">
                       {isOutOfStock ? (
@@ -433,6 +488,51 @@ export const Inventory: React.FC<InventoryProps> = ({
                     </button>
                 </div>
               </div>
+
+              {/* Product Type Selection */}
+              <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-2">Product Type</label>
+                 <div className="flex gap-4">
+                    <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition-all ${currentProduct.productType === 'sale' || !currentProduct.productType ? 'bg-blue-50 border-blue-500 text-blue-700 ring-1 ring-blue-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                        <input 
+                            type="radio" 
+                            name="productType" 
+                            value="sale" 
+                            checked={currentProduct.productType === 'sale' || !currentProduct.productType}
+                            onChange={() => setCurrentProduct({...currentProduct, productType: 'sale', rentalDuration: ''})}
+                            className="hidden"
+                        />
+                        <Tag size={18} />
+                        <span className="font-medium">For Sale</span>
+                    </label>
+
+                    <label className={`flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl border cursor-pointer transition-all ${currentProduct.productType === 'rental' ? 'bg-purple-50 border-purple-500 text-purple-700 ring-1 ring-purple-500' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
+                        <input 
+                            type="radio" 
+                            name="productType" 
+                            value="rental" 
+                            checked={currentProduct.productType === 'rental'}
+                            onChange={() => setCurrentProduct({...currentProduct, productType: 'rental'})}
+                            className="hidden"
+                        />
+                        <Clock size={18} />
+                        <span className="font-medium">For Rental</span>
+                    </label>
+                 </div>
+              </div>
+
+              {currentProduct.productType === 'rental' && (
+                  <div className="animate-in slide-in-from-top-2 duration-200">
+                      <label className="block text-sm font-medium text-slate-700 mb-1">Rental Duration / Unit</label>
+                      <input 
+                          type="text" 
+                          value={currentProduct.rentalDuration || ''} 
+                          onChange={(e) => setCurrentProduct({...currentProduct, rentalDuration: e.target.value})} 
+                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                          placeholder="e.g. 1 Hour, Per Day, 30 Mins"
+                      />
+                  </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>

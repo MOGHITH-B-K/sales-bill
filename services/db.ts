@@ -1,6 +1,7 @@
 
 import { supabase } from './supabaseClient';
 import { Product, Order, ShopDetails, Customer } from '../types';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 const LOCAL_STORAGE_KEYS = {
   PRODUCTS: 'products',
@@ -32,6 +33,35 @@ export const dbService = {
     const isMissing = !url || !key;
 
     return !isMissing && !isPlaceholder;
+  },
+
+  // --- Real-time Subscription ---
+  subscribeToChanges(
+    tableName: 'products' | 'orders' | 'customers' | 'settings',
+    callback: (payload: any) => void
+  ): RealtimeChannel | null {
+    if (!this.isConfigured()) return null;
+
+    // Create a channel for the specific table
+    return supabase
+      .channel(`public:${tableName}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: tableName },
+        (payload) => {
+            // Pass the raw payload to the callback
+            callback(payload);
+        }
+      )
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+            console.log(`Subscribed to ${tableName} changes`);
+        }
+      });
+  },
+
+  unsubscribe(channel: RealtimeChannel) {
+    supabase.removeChannel(channel);
   },
 
   // --- Products ---
@@ -199,6 +229,15 @@ export const dbService = {
     if (error) console.error("Error deleting customer:", error.message || error);
   },
 
+  async clearCustomers() {
+    if (!this.isConfigured()) {
+      setLocal(LOCAL_STORAGE_KEYS.CUSTOMERS, []);
+      return;
+    }
+    const { error } = await supabase.from('customers').delete().neq('id', '0');
+    if (error) console.error("Error clearing customers:", error.message || error);
+  },
+
   // --- Settings ---
   async getShopDetails() {
     if (!this.isConfigured()) {
@@ -229,4 +268,21 @@ export const dbService = {
     const { error } = await supabase.from('settings').upsert(payload);
     if (error) console.error("Error saving settings:", error.message || error);
   },
+
+  async resetDatabase() {
+    if (!this.isConfigured()) {
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.PRODUCTS);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.ORDERS);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.CUSTOMERS);
+      localStorage.removeItem(LOCAL_STORAGE_KEYS.SETTINGS);
+      return;
+    }
+
+    await Promise.all([
+      supabase.from('products').delete().neq('id', '0'),
+      supabase.from('orders').delete().neq('id', '0'),
+      supabase.from('customers').delete().neq('id', '0'),
+      supabase.from('settings').delete().neq('id', '0')
+    ]);
+  }
 };

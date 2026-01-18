@@ -9,6 +9,8 @@ export interface Product {
   image?: string; // Base64 string or URL
   taxRate?: number; // Optional product-specific tax rate
   minStockLevel?: number; // Custom minimum stock alert level
+  productType: 'sale' | 'rental'; 
+  rentalDuration?: string; // e.g. "1 Hour", "Per Day"
 }
 
 export interface Customer {

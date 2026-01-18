@@ -24,12 +24,12 @@ const INITIAL_SHOP_DETAILS: ShopDetails = {
 
 // Seeding data for new instances
 const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk', taxRate: 5 },
-  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry', taxRate: 5 },
-  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado', taxRate: 5 },
-  { id: '4', name: 'Iced Latte', price: 280, stock: 45, category: 'Beverages', description: 'Cold espresso with milk and ice', taxRate: 5 },
-  { id: '5', name: 'Blueberry Muffin', price: 150, stock: 25, category: 'Snacks', description: 'Freshly baked with berries', taxRate: 5 },
-  { id: '6', name: 'Green Tea', price: 120, stock: 100, category: 'Beverages', description: 'Organic soothing green tea', taxRate: 5 },
+  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk', taxRate: 5, productType: 'sale' },
+  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry', taxRate: 5, productType: 'sale' },
+  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado', taxRate: 5, productType: 'sale' },
+  { id: '4', name: 'Iced Latte', price: 280, stock: 45, category: 'Beverages', description: 'Cold espresso with milk and ice', taxRate: 5, productType: 'sale' },
+  { id: '5', name: 'Blueberry Muffin', price: 150, stock: 25, category: 'Snacks', description: 'Freshly baked with berries', taxRate: 5, productType: 'sale' },
+  { id: '6', name: 'Green Tea', price: 120, stock: 100, category: 'Beverages', description: 'Organic soothing green tea', taxRate: 5, productType: 'sale' },
 ];
 
 const App: React.FC = () => {
@@ -44,21 +44,30 @@ const App: React.FC = () => {
   // State to hold customer details when editing an order
   const [editingCustomer, setEditingCustomer] = useState<{name: string, phone: string, place: string} | null>(null);
 
-  // Load data from DB on mount
+  // Load data from DB on mount and setup real-time subscriptions
   useEffect(() => {
+    let productSub: any = null;
+    let orderSub: any = null;
+    let customerSub: any = null;
+
     const loadData = async () => {
       try {
         // Load Products
         const dbProducts = await dbService.getProducts();
         
-        if (dbProducts.length === 0) {
-            // Seed initial products if DB is empty
+        if (dbProducts.length === 0 && !dbService.isConfigured()) {
+            // Seed initial products if DB is empty and local
             for (const p of INITIAL_PRODUCTS) {
               await dbService.saveProduct(p);
             }
             setProducts(INITIAL_PRODUCTS);
         } else {
-            setProducts(dbProducts);
+            // Ensure compatibility
+            const normalizedProducts = dbProducts.map(p => ({
+                ...p,
+                productType: p.productType || 'sale'
+            }));
+            setProducts(normalizedProducts);
         }
 
         // Load Orders
@@ -78,13 +87,55 @@ const App: React.FC = () => {
           await dbService.saveShopDetails(INITIAL_SHOP_DETAILS);
           setShopDetails(INITIAL_SHOP_DETAILS);
         }
+
+        // --- SETUP REALTIME SUBSCRIPTIONS ---
+        if (dbService.isConfigured()) {
+            const handleRealtime = (payload: any, setter: React.Dispatch<React.SetStateAction<any[]>>, idField = 'id', sortFn?: (a: any, b: any) => number) => {
+                const { eventType, new: newRecord, old: oldRecord } = payload;
+                
+                setter(prev => {
+                    let updated = [...prev];
+                    if (eventType === 'INSERT') {
+                        // Avoid duplicates if we optimistically updated
+                        const exists = updated.find(item => item[idField] === newRecord[idField]);
+                        if (!exists) updated.push(newRecord);
+                    } else if (eventType === 'UPDATE') {
+                        updated = updated.map(item => item[idField] === newRecord[idField] ? newRecord : item);
+                    } else if (eventType === 'DELETE') {
+                        updated = updated.filter(item => item[idField] !== oldRecord[idField]);
+                    }
+                    if (sortFn) updated.sort(sortFn);
+                    return updated;
+                });
+            };
+
+            productSub = dbService.subscribeToChanges('products', (payload) => {
+                handleRealtime(payload, setProducts);
+            });
+
+            orderSub = dbService.subscribeToChanges('orders', (payload) => {
+                handleRealtime(payload, setOrders, 'id', (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+            });
+
+            customerSub = dbService.subscribeToChanges('customers', (payload) => {
+                handleRealtime(payload, setCustomers);
+            });
+        }
+
       } catch (error) {
         console.error("Failed to load data from database", error);
       } finally {
         setLoading(false);
       }
     };
+    
     loadData();
+
+    return () => {
+        if (productSub) dbService.unsubscribe(productSub);
+        if (orderSub) dbService.unsubscribe(orderSub);
+        if (customerSub) dbService.unsubscribe(customerSub);
+    };
   }, []);
 
   // Product Handlers
@@ -220,6 +271,27 @@ const App: React.FC = () => {
   const handleDeleteCustomer = async (id: string) => {
     await dbService.deleteCustomer(id);
     setCustomers(prev => prev.filter(c => c.id !== id));
+  };
+
+  const handleClearCustomers = async () => {
+    await dbService.clearCustomers();
+    setCustomers([]);
+  };
+
+  // Factory Reset
+  const handleFactoryReset = async () => {
+      // Clear database tables
+      await dbService.resetDatabase();
+      
+      // Reset local state
+      setProducts([]);
+      setOrders([]);
+      setCustomers([]);
+      setCart([]);
+      
+      // Reset settings to default
+      await dbService.saveShopDetails(INITIAL_SHOP_DETAILS);
+      setShopDetails(INITIAL_SHOP_DETAILS);
   };
 
   // Settings Handler
@@ -392,6 +464,10 @@ const App: React.FC = () => {
                 onSave={handleSaveSettings} 
                 orders={orders}
                 customers={customers}
+                onClearOrders={handleClearOrders}
+                onClearProducts={handleClearProducts}
+                onClearCustomers={handleClearCustomers}
+                onFactoryReset={handleFactoryReset}
             />
           )}
         </div>

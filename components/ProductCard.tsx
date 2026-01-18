@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Plus, AlertCircle, AlertTriangle } from 'lucide-react';
+import { Plus, AlertCircle, AlertTriangle, Clock } from 'lucide-react';
 import { Product } from '../types';
 
 interface ProductCardProps {
@@ -13,6 +13,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
   // Use custom limit or default to 5
   const lowStockThreshold = product.minStockLevel !== undefined ? product.minStockLevel : 5;
   const isLowStock = product.stock > 0 && product.stock <= lowStockThreshold;
+  const isRental = product.productType === 'rental';
 
   return (
     <div 
@@ -22,7 +23,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
           ? 'opacity-80 cursor-not-allowed border-red-200 bg-red-50/30' 
           : isLowStock
             ? 'cursor-pointer border-orange-200 hover:shadow-md hover:border-orange-300 bg-orange-50/20'
-            : 'cursor-pointer border-slate-100 hover:shadow-md hover:border-blue-200'
+            : isRental 
+                ? 'cursor-pointer border-purple-100 hover:shadow-md hover:border-purple-300'
+                : 'cursor-pointer border-slate-100 hover:shadow-md hover:border-blue-200'
       }`}
     >
       <div className="relative mb-3 h-32 -mx-4 -mt-4 bg-slate-100 flex items-center justify-center overflow-hidden">
@@ -34,12 +37,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
           />
         ) : (
           <div className={`h-16 w-16 rounded-full flex items-center justify-center font-bold text-xl ${
-            isOutOfStock ? 'bg-slate-200 text-slate-400' : 'bg-blue-50 text-blue-600'
+            isOutOfStock 
+                ? 'bg-slate-200 text-slate-400' 
+                : isRental 
+                    ? 'bg-purple-100 text-purple-600'
+                    : 'bg-blue-50 text-blue-600'
           }`}>
             {product.name.substring(0, 2).toUpperCase()}
           </div>
         )}
         
+        {/* Rental Badge */}
+        {isRental && !isOutOfStock && (
+            <div className="absolute top-2 left-2 bg-purple-600 text-white px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm flex items-center gap-1">
+                <Clock size={10} /> {product.rentalDuration ? product.rentalDuration : 'Rental'}
+            </div>
+        )}
+
         {/* Price Badge */}
         <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-bold text-slate-700 shadow-sm">
           ₹{product.price.toFixed(2)}
@@ -91,10 +105,12 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
             ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
             : isLowStock 
                 ? 'bg-orange-100 text-orange-700 hover:bg-orange-600 hover:text-white'
-                : 'bg-slate-50 text-slate-600 group-hover:bg-blue-600 group-hover:text-white'
+                : isRental
+                    ? 'bg-purple-50 text-purple-600 group-hover:bg-purple-600 group-hover:text-white'
+                    : 'bg-slate-50 text-slate-600 group-hover:bg-blue-600 group-hover:text-white'
         }`}
       >
-        <Plus size={14} /> {isOutOfStock ? 'Unavailable' : 'Add to Bill'}
+        <Plus size={14} /> {isOutOfStock ? 'Unavailable' : isRental ? 'Rent Item' : 'Add to Bill'}
       </button>
     </div>
   );

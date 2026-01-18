@@ -1,6 +1,6 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History, Clock } from 'lucide-react';
 import { Product, CartItem, Order, ShopDetails, Customer } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
@@ -422,7 +422,10 @@ export const POS: React.FC<POSProps> = ({
                   {item.qty}x
                 </div>
                 <div className="flex-1 min-w-0">
-                  <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
+                  <div className="flex items-center gap-2">
+                    <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
+                    {item.productType === 'rental' && <span className="text-[10px] bg-purple-100 text-purple-700 px-1 rounded flex items-center gap-0.5"><Clock size={8}/> Rental</span>}
+                  </div>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
                     <span>₹{item.price.toFixed(2)}</span>
                     {shopDetails.taxEnabled && <span className="text-[10px] bg-slate-100 px-1 rounded">Tax: {item.taxRate || 0}%</span>}

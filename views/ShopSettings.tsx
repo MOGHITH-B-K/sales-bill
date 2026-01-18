@@ -1,17 +1,30 @@
 
 import React, { useState } from 'react';
-import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download } from 'lucide-react';
+import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle } from 'lucide-react';
 import { ShopDetails, Order, Customer } from '../types';
 
 interface ShopSettingsProps {
   shopDetails: ShopDetails;
   onSave: (details: ShopDetails) => Promise<void>;
-  // Props for Data Export
+  // Props for Data Export & Mgmt
   orders?: Order[];
   customers?: Customer[];
+  onClearOrders: () => Promise<void>;
+  onClearProducts: () => Promise<void>;
+  onClearCustomers: () => Promise<void>;
+  onFactoryReset: () => Promise<void>;
 }
 
-export const ShopSettings: React.FC<ShopSettingsProps> = ({ shopDetails, onSave, orders = [], customers = [] }) => {
+export const ShopSettings: React.FC<ShopSettingsProps> = ({ 
+    shopDetails, 
+    onSave, 
+    orders = [], 
+    customers = [],
+    onClearOrders,
+    onClearProducts,
+    onClearCustomers,
+    onFactoryReset
+}) => {
   const [formData, setFormData] = useState<ShopDetails>(shopDetails);
   const [isSaved, setIsSaved] = useState(false);
   
@@ -85,6 +98,22 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({ shopDetails, onSave,
     link.click();
     document.body.removeChild(link);
   };
+
+  const handleReset = async (type: 'orders' | 'products' | 'customers' | 'all') => {
+      let msg = "";
+      if (type === 'orders') msg = "Delete ALL Order History?";
+      if (type === 'products') msg = "Delete ALL Products from Inventory?";
+      if (type === 'customers') msg = "Delete ALL Customer records?";
+      if (type === 'all') msg = "FACTORY RESET: Delete ALL Data (Orders, Products, Customers)? This cannot be undone.";
+
+      if (window.confirm(msg)) {
+          if (type === 'orders') await onClearOrders();
+          if (type === 'products') await onClearProducts();
+          if (type === 'customers') await onClearCustomers();
+          if (type === 'all') await onFactoryReset();
+          alert("Data cleared successfully.");
+      }
+  }
 
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
@@ -298,22 +327,70 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({ shopDetails, onSave,
                 <h3 className="font-semibold text-lg text-slate-800">Data Management</h3>
             </div>
             <div className="p-8">
-                <p className="text-sm text-slate-500 mb-6">Download your data for backups or external analysis.</p>
-                <div className="flex flex-wrap gap-4">
-                    <button 
-                        type="button"
-                        onClick={exportOrdersCSV}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200"
-                    >
-                        <Download size={18} /> Export Orders (CSV)
-                    </button>
-                    <button 
-                        type="button"
-                        onClick={exportCustomersCSV}
-                        className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200"
-                    >
-                        <Download size={18} /> Export Customers (CSV)
-                    </button>
+                <div className="flex flex-col space-y-6">
+                    {/* Exports */}
+                    <div>
+                        <h4 className="text-sm font-bold text-slate-700 mb-3 uppercase tracking-wider">Exports</h4>
+                        <div className="flex flex-wrap gap-4">
+                            <button 
+                                type="button"
+                                onClick={exportOrdersCSV}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200"
+                            >
+                                <Download size={18} /> Export Orders (CSV)
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={exportCustomersCSV}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200"
+                            >
+                                <Download size={18} /> Export Customers (CSV)
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="border-t border-slate-100 my-2"></div>
+
+                    {/* Danger Zone */}
+                    <div>
+                        <div className="flex items-center gap-2 text-red-600 mb-3">
+                            <AlertTriangle size={18} />
+                            <h4 className="text-sm font-bold uppercase tracking-wider">Danger Zone</h4>
+                        </div>
+                        <p className="text-sm text-slate-500 mb-4">
+                            These actions are irreversible. Please ensure you have exported your data before deleting.
+                        </p>
+                        <div className="flex flex-wrap gap-4">
+                            <button 
+                                type="button"
+                                onClick={() => handleReset('orders')}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-medium transition-colors border border-red-100"
+                            >
+                                <Trash2 size={18} /> Clear Orders
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => handleReset('products')}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-medium transition-colors border border-red-100"
+                            >
+                                <Trash2 size={18} /> Clear Products
+                            </button>
+                             <button 
+                                type="button"
+                                onClick={() => handleReset('customers')}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl font-medium transition-colors border border-red-100"
+                            >
+                                <Trash2 size={18} /> Clear Customers
+                            </button>
+                            <button 
+                                type="button"
+                                onClick={() => handleReset('all')}
+                                className="flex items-center gap-2 px-5 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors shadow-lg shadow-red-200"
+                            >
+                                <AlertTriangle size={18} /> Factory Reset (All Data)
+                            </button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
