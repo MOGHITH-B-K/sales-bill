@@ -1,5 +1,6 @@
+
 import React, { useState } from 'react';
-import { Calendar, Receipt, Search, Trash2, AlertTriangle } from 'lucide-react';
+import { Calendar, Receipt, Search, Trash2, Edit } from 'lucide-react';
 import { Order, ShopDetails } from '../types';
 import { ReceiptModal } from '../components/ReceiptModal';
 
@@ -7,10 +8,11 @@ interface HistoryProps {
   orders: Order[];
   onDeleteOrder: (id: string) => Promise<void>;
   onClearOrders: () => Promise<void>;
+  onEditOrder: (order: Order) => void; // New prop for Editing/Recalling
   shopDetails: ShopDetails;
 }
 
-export const History: React.FC<HistoryProps> = ({ orders, onDeleteOrder, onClearOrders, shopDetails }) => {
+export const History: React.FC<HistoryProps> = ({ orders, onDeleteOrder, onClearOrders, onEditOrder, shopDetails }) => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -22,6 +24,12 @@ export const History: React.FC<HistoryProps> = ({ orders, onDeleteOrder, onClear
     if (window.confirm('Are you sure you want to delete this order record?')) {
       await onDeleteOrder(id);
     }
+  };
+
+  const handleEdit = (order: Order) => {
+      if (window.confirm("Recall this order for editing? \n\nThis will delete the current record and move items back to the Billing screen.")) {
+          onEditOrder(order);
+      }
   };
 
   const handleDeleteAll = async () => {
@@ -93,6 +101,13 @@ export const History: React.FC<HistoryProps> = ({ orders, onDeleteOrder, onClear
                 <td className="px-6 py-4 font-bold text-slate-800">₹{order.total.toFixed(2)}</td>
                 <td className="px-6 py-4 text-right">
                   <div className="flex justify-end gap-2">
+                    <button 
+                        onClick={() => handleEdit(order)}
+                        className="inline-flex items-center justify-center p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-600 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        title="Edit / Recall Order"
+                    >
+                        <Edit size={16} />
+                    </button>
                     <button 
                         onClick={() => setSelectedOrder(order)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg text-sm font-medium transition-colors"

@@ -1,3 +1,4 @@
+
 export interface Product {
   id: string;
   name: string;
@@ -6,6 +7,15 @@ export interface Product {
   category: string;
   description?: string;
   image?: string; // Base64 string or URL
+  taxRate?: number; // Optional product-specific tax rate
+  minStockLevel?: number; // Custom minimum stock alert level
+}
+
+export interface Customer {
+  id: string;
+  name: string;
+  phone: string;
+  place: string;
 }
 
 export interface CartItem extends Product {
@@ -17,6 +27,12 @@ export interface Order {
   date: string;
   items: CartItem[];
   total: number;
+  taxTotal: number;
+  customer?: {
+    name: string;
+    phone: string;
+    place: string;
+  };
 }
 
 export interface ShopDetails {
@@ -27,8 +43,10 @@ export interface ShopDetails {
   footerMessage: string;
   logo?: string; // Base64 string
   paymentQrCode?: string; // Base64 string
+  taxEnabled: boolean;
+  defaultTaxRate: number;
 }
 
-export type ViewState = 'pos' | 'inventory' | 'history' | 'settings';
+export type ViewState = 'pos' | 'inventory' | 'customers' | 'history' | 'settings' | 'analysis';
 
-export const CATEGORIES = ['Beverages', 'Food', 'Snacks', 'Dessert', 'Other'];
+export const CATEGORIES = ['Beverages', 'Food', 'Snacks', 'Dessert'];

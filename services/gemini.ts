@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 
 // Initialize client with environment variable, fallback to empty string to prevent crash on load
@@ -27,7 +28,11 @@ export const generateProductDetails = async (productName: string) => {
       }
     });
 
-    return JSON.parse(response.text || '{}');
+    let jsonStr = response.text || '{}';
+    // Clean potential markdown code blocks if the model returns them despite responseMimeType
+    jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    return JSON.parse(jsonStr);
   } catch (error) {
     console.error("Gemini generation error:", error);
     return null;

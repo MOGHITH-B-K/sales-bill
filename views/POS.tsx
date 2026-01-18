@@ -1,25 +1,88 @@
-import React, { useState, useMemo } from 'react';
-import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package } from 'lucide-react';
-import { Product, CartItem, CATEGORIES, Order, ShopDetails } from '../types';
+
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History } from 'lucide-react';
+import { Product, CartItem, CATEGORIES, Order, ShopDetails, Customer } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
+import { dbService } from '../services/db';
 
 interface POSProps {
   products: Product[];
+  customers: Customer[];
   cart: CartItem[];
   setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
   onSaveOrder: (order: Order) => void;
+  onSaveCustomer: (customer: Customer) => void;
   shopDetails: ShopDetails;
   onManageStock: () => void;
+  onViewHistory: () => void;
+  initialCustomer?: { name: string; phone: string; place: string } | null;
 }
 
-export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, shopDetails, onManageStock }) => {
+export const POS: React.FC<POSProps> = ({ 
+    products, 
+    customers, 
+    cart, 
+    setCart, 
+    onSaveOrder, 
+    onSaveCustomer,
+    shopDetails, 
+    onManageStock,
+    onViewHistory,
+    initialCustomer
+}) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [manualQtyMode, setManualQtyMode] = useState(false);
   const [qtyPromptProduct, setQtyPromptProduct] = useState<Product | null>(null);
   const [qtyPromptValue, setQtyPromptValue] = useState<string>('1');
   const [lastOrder, setLastOrder] = useState<Order | null>(null);
+  const [isCheckingOut, setIsCheckingOut] = useState(false);
+
+  // Customer State
+  const [customerName, setCustomerName] = useState('');
+  const [customerPhone, setCustomerPhone] = useState('');
+  const [customerPlace, setCustomerPlace] = useState('');
+  const [showCustomerSearch, setShowCustomerSearch] = useState(false);
+  const [isCustomerSectionOpen, setIsCustomerSectionOpen] = useState(true);
+  const searchWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Initialize customer state from prop if editing an order
+  useEffect(() => {
+    if (initialCustomer) {
+      setCustomerName(initialCustomer.name || '');
+      setCustomerPhone(initialCustomer.phone || '');
+      setCustomerPlace(initialCustomer.place || '');
+      setIsCustomerSectionOpen(true);
+    }
+  }, [initialCustomer]);
+
+  // Filter customers for autocomplete
+  const filteredCustomers = useMemo(() => {
+    if (!customerPhone && !customerName) return [];
+    const term = (customerPhone || customerName).toLowerCase();
+    return customers.filter(c => 
+        c.phone.includes(term) || c.name.toLowerCase().includes(term)
+    ).slice(0, 5); // Limit suggestions
+  }, [customers, customerPhone, customerName]);
+
+  // Click outside to close search suggestions
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (searchWrapperRef.current && !searchWrapperRef.current.contains(event.target as Node)) {
+        setShowCustomerSearch(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selectCustomer = (customer: Customer) => {
+    setCustomerName(customer.name);
+    setCustomerPhone(customer.phone);
+    setCustomerPlace(customer.place);
+    setShowCustomerSearch(false);
+  };
 
   // Derived State
   const filteredProducts = useMemo(() => {
@@ -30,9 +93,26 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
     });
   }, [products, selectedCategory, searchQuery]);
 
-  const totalAmount = useMemo(() => {
+  const subTotal = useMemo(() => {
     return cart.reduce((sum, item) => sum + (item.price * item.qty), 0);
   }, [cart]);
+
+  const taxTotal = useMemo(() => {
+    if (!shopDetails.taxEnabled) return 0;
+    
+    return cart.reduce((sum, item) => {
+        const rate = item.taxRate !== undefined ? item.taxRate : shopDetails.defaultTaxRate;
+        const itemTax = (item.price * item.qty) * (rate / 100);
+        return sum + itemTax;
+    }, 0);
+  }, [cart, shopDetails]);
+
+  const grandTotal = subTotal + taxTotal;
+
+  const dynamicCategories = useMemo(() => {
+      const cats = new Set([...CATEGORIES, ...products.map(p => p.category)]);
+      return Array.from(cats).sort();
+  }, [products]);
 
   // Handlers
   const initiateAddToCart = (product: Product) => {
@@ -64,12 +144,15 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
         return prev;
       }
 
+      const taxRate = product.taxRate !== undefined ? product.taxRate : shopDetails.defaultTaxRate;
+      const productWithTax = { ...product, taxRate };
+
       if (existing) {
         return prev.map(item => 
           item.id === product.id ? { ...item, qty: item.qty + quantity } : item
         );
       }
-      return [...prev, { ...product, qty: quantity }];
+      return [...prev, { ...productWithTax, qty: quantity }];
     });
   };
 
@@ -77,7 +160,6 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
     const qty = parseInt(newQty);
     if (isNaN(qty) || qty < 1) return;
     
-    // Check stock
     const product = products.find(p => p.id === id);
     if (product && qty > product.stock) {
         alert(`Maximum stock available is ${product.stock}`);
@@ -96,22 +178,59 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
   const clearCart = () => {
     if(window.confirm("Are you sure you want to clear the bill?")) {
       setCart([]);
+      setCustomerName('');
+      setCustomerPhone('');
+      setCustomerPlace('');
     }
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
+    setIsCheckingOut(true);
     
-    const newOrder: Order = {
-      id: Math.floor(Math.random() * 1000000).toString(),
-      date: new Date().toISOString(),
-      items: [...cart],
-      total: totalAmount * 1.1 // Including 10% tax
-    };
+    try {
+        // Auto-save customer logic
+        if (customerPhone && customerName) {
+            const existingCustomer = customers.find(c => c.phone === customerPhone);
+            if (!existingCustomer) {
+                const newCustomer: Customer = {
+                    id: Date.now().toString(),
+                    name: customerName,
+                    phone: customerPhone,
+                    place: customerPlace || ''
+                };
+                onSaveCustomer(newCustomer);
+            }
+        }
 
-    onSaveOrder(newOrder);
-    setLastOrder(newOrder);
-    setCart([]);
+        // Get serial order ID
+        const nextId = await dbService.getNextOrderId();
+
+        const newOrder: Order = {
+          id: nextId,
+          date: new Date().toISOString(),
+          items: [...cart],
+          total: grandTotal,
+          taxTotal: taxTotal,
+          customer: (customerName || customerPhone) ? {
+              name: customerName,
+              phone: customerPhone,
+              place: customerPlace
+          } : undefined
+        };
+
+        onSaveOrder(newOrder);
+        setLastOrder(newOrder);
+        setCart([]);
+        setCustomerName('');
+        setCustomerPhone('');
+        setCustomerPlace('');
+    } catch (error) {
+        console.error("Checkout failed:", error);
+        alert("Failed to process order. Please try again.");
+    } finally {
+        setIsCheckingOut(false);
+    }
   };
 
   return (
@@ -119,29 +238,37 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
       {/* Left Side: Menu */}
       <div className="flex-1 flex flex-col min-w-0">
         <header className="mb-6">
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-wrap justify-between items-center gap-2 mb-4">
              <div className="flex items-center gap-3">
                  <h2 className="text-2xl font-bold text-slate-800">Menu</h2>
-                 <button 
-                   onClick={onManageStock}
-                   className="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium flex items-center gap-1 transition-colors"
-                   title="Go to Stock Management"
-                 >
-                   <Package size={14} /> Manage Stock
-                 </button>
+                 <div className="flex gap-2">
+                    <button 
+                      onClick={onManageStock}
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200"
+                      title="Go to Stock Management"
+                    >
+                      <Package size={14} /> Stock
+                    </button>
+                    <button 
+                      onClick={onViewHistory}
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200"
+                      title="Go to Order History"
+                    >
+                      <History size={14} /> History
+                    </button>
+                 </div>
              </div>
              <button 
                 onClick={() => setManualQtyMode(!manualQtyMode)}
-                className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors"
+                className="flex items-center gap-2 text-sm text-slate-600 hover:text-blue-600 transition-colors bg-white px-3 py-1.5 rounded-lg border border-slate-100 shadow-sm"
                 title="Ask for quantity when clicking a product"
              >
                 {manualQtyMode ? <ToggleRight className="text-blue-600" size={24} /> : <ToggleLeft className="text-slate-400" size={24} />}
-                <span>Manual Quantity Input</span>
+                <span className="font-medium">Manual Qty</span>
              </button>
           </div>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-between items-center mb-4">
-             {/* Search */}
             <div className="relative w-full sm:w-72">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
               <input 
@@ -153,7 +280,6 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
               />
             </div>
 
-            {/* Categories */}
             <div className="flex gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto scrollbar-hide">
               <button 
                 onClick={() => setSelectedCategory('All')}
@@ -163,7 +289,7 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
               >
                 All
               </button>
-              {CATEGORIES.map(cat => (
+              {dynamicCategories.map(cat => (
                 <button 
                   key={cat}
                   onClick={() => setSelectedCategory(cat)}
@@ -178,7 +304,6 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
           </div>
         </header>
 
-        {/* Product Grid */}
         <div className="flex-1 overflow-y-auto pr-2 pb-2">
           {filteredProducts.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-64 text-slate-400">
@@ -197,13 +322,79 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
 
       {/* Right Side: Billing Cart */}
       <div className="w-full lg:w-96 bg-white rounded-2xl shadow-xl border border-slate-100 flex flex-col h-[calc(100vh-8rem)] lg:h-auto sticky top-4">
-        <div className="p-5 border-b border-slate-100 bg-slate-50/50 rounded-t-2xl">
-          <div className="flex items-center justify-between mb-1">
+        <div className="p-4 border-b border-slate-100 bg-slate-50/50 rounded-t-2xl">
+          <div className="flex items-center justify-between">
             <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
               <ShoppingCart size={20} className="text-blue-600" />
               Current Bill
             </h3>
+            <span className="text-xs font-bold bg-slate-200 text-slate-600 px-2 py-1 rounded-full">{cart.length} Items</span>
           </div>
+        </div>
+
+        {/* Customer Details Section */}
+        <div className="px-4 py-3 border-b border-slate-100 bg-white" ref={searchWrapperRef}>
+            <button 
+                onClick={() => setIsCustomerSectionOpen(!isCustomerSectionOpen)}
+                className="flex items-center justify-between w-full text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 hover:text-blue-600"
+            >
+                <span>Customer Details (Optional)</span>
+                {isCustomerSectionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </button>
+            
+            {isCustomerSectionOpen && (
+                <div className="space-y-2 animate-in slide-in-from-top-2 duration-200">
+                    <div className="relative">
+                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><Phone size={14} /></div>
+                        <input 
+                            type="tel" 
+                            placeholder="Phone (Search)"
+                            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                            value={customerPhone}
+                            onChange={(e) => {
+                                setCustomerPhone(e.target.value);
+                                setShowCustomerSearch(true);
+                            }}
+                            onFocus={() => setShowCustomerSearch(true)}
+                        />
+                         {/* Search Dropdown */}
+                        {showCustomerSearch && filteredCustomers.length > 0 && (
+                            <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-40 overflow-y-auto">
+                                {filteredCustomers.map(customer => (
+                                    <div 
+                                        key={customer.id} 
+                                        className="px-3 py-2 hover:bg-slate-50 cursor-pointer flex flex-col border-b border-slate-50 last:border-0"
+                                        onClick={() => selectCustomer(customer)}
+                                    >
+                                        <span className="text-sm font-bold text-slate-800">{customer.name}</span>
+                                        <span className="text-xs text-slate-500">{customer.phone} • {customer.place}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div className="relative">
+                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><User size={14} /></div>
+                        <input 
+                            type="text" 
+                            placeholder="Name"
+                            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                        />
+                    </div>
+                    <div className="relative">
+                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"><MapPin size={14} /></div>
+                        <input 
+                            type="text" 
+                            placeholder="Place"
+                            className="w-full pl-9 pr-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
+                            value={customerPlace}
+                            onChange={(e) => setCustomerPlace(e.target.value)}
+                        />
+                    </div>
+                </div>
+            )}
         </div>
 
         {/* Cart Items List */}
@@ -225,7 +416,8 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
                 <div className="flex-1 min-w-0">
                   <h4 className="font-medium text-slate-800 truncate">{item.name}</h4>
                   <div className="text-xs text-slate-500 flex items-center gap-2">
-                    <span>₹{item.price.toFixed(2)} / unit</span>
+                    <span>₹{item.price.toFixed(2)}</span>
+                    {shopDetails.taxEnabled && <span className="text-[10px] bg-slate-100 px-1 rounded">Tax: {item.taxRate || 0}%</span>}
                   </div>
                 </div>
                 <div className="flex flex-col items-end gap-1">
@@ -258,32 +450,38 @@ export const POS: React.FC<POSProps> = ({ products, cart, setCart, onSaveOrder, 
           <div className="space-y-2 mb-4">
             <div className="flex justify-between text-sm text-slate-500">
               <span>Subtotal</span>
-              <span>₹{totalAmount.toFixed(2)}</span>
+              <span>₹{subTotal.toFixed(2)}</span>
             </div>
+            
             <div className="flex justify-between text-sm text-slate-500">
-              <span>Tax (10%)</span>
-              <span>₹{(totalAmount * 0.1).toFixed(2)}</span>
+              <span className="flex items-center gap-2">
+                Tax 
+                {!shopDetails.taxEnabled && <span className="text-[10px] text-slate-400">(Disabled)</span>}
+              </span>
+              <span>₹{taxTotal.toFixed(2)}</span>
             </div>
+            
             <div className="flex justify-between items-center pt-2 border-t border-dashed border-slate-200">
               <span className="font-bold text-slate-800 text-lg">Total</span>
-              <span className="font-bold text-blue-600 text-xl">₹{(totalAmount * 1.1).toFixed(2)}</span>
+              <span className="font-bold text-blue-600 text-xl">₹{grandTotal.toFixed(2)}</span>
             </div>
           </div>
           
           <div className="grid grid-cols-2 gap-3">
              <button 
               onClick={clearCart}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || isCheckingOut}
               className="py-3 px-4 rounded-xl text-slate-600 font-medium text-sm bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               Cancel
             </button>
             <button 
               onClick={handleCheckout}
-              disabled={cart.length === 0}
+              disabled={cart.length === 0 || isCheckingOut}
               className="py-3 px-4 rounded-xl text-white font-medium text-sm bg-slate-900 hover:bg-blue-600 shadow-lg shadow-slate-200 hover:shadow-blue-200 transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <CreditCard size={16} /> Pay & Print
+              <CreditCard size={16} /> 
+              {isCheckingOut ? 'Processing...' : 'Pay & Print'}
             </button>
           </div>
         </div>

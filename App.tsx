@@ -1,21 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Store, LogOut, ReceiptText, Settings } from 'lucide-react';
+import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users } from 'lucide-react';
 import { POS } from './views/POS';
 import { Inventory } from './views/Inventory';
 import { History } from './views/History';
 import { ShopSettings } from './views/ShopSettings';
-import { Product, CartItem, ViewState, Order, ShopDetails } from './types';
+import { DailyAnalysis } from './views/DailyAnalysis';
+import { Customers } from './views/Customers';
+import { Product, CartItem, ViewState, Order, ShopDetails, Customer } from './types';
 import { dbService } from './services/db';
-
-// Initial Data for seeding the DB
-const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk' },
-  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry' },
-  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado' },
-  { id: '4', name: 'Iced Latte', price: 280, stock: 45, category: 'Beverages', description: 'Cold espresso with milk and ice' },
-  { id: '5', name: 'Blueberry Muffin', price: 150, stock: 25, category: 'Snacks', description: 'Freshly baked with berries' },
-  { id: '6', name: 'Green Tea', price: 120, stock: 100, category: 'Beverages', description: 'Organic soothing green tea' },
-];
 
 const INITIAL_SHOP_DETAILS: ShopDetails = {
   name: 'SmartPOS Demo Shop',
@@ -24,16 +17,32 @@ const INITIAL_SHOP_DETAILS: ShopDetails = {
   email: 'contact@smartpos.demo',
   footerMessage: 'Thank you for your business!',
   logo: '',
-  paymentQrCode: ''
+  paymentQrCode: '',
+  taxEnabled: true,
+  defaultTaxRate: 5
 };
 
+// Seeding data for new instances
+const INITIAL_PRODUCTS: Product[] = [
+  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk', taxRate: 5 },
+  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry', taxRate: 5 },
+  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado', taxRate: 5 },
+  { id: '4', name: 'Iced Latte', price: 280, stock: 45, category: 'Beverages', description: 'Cold espresso with milk and ice', taxRate: 5 },
+  { id: '5', name: 'Blueberry Muffin', price: 150, stock: 25, category: 'Snacks', description: 'Freshly baked with berries', taxRate: 5 },
+  { id: '6', name: 'Green Tea', price: 120, stock: 100, category: 'Beverages', description: 'Organic soothing green tea', taxRate: 5 },
+];
+
 const App: React.FC = () => {
-  const [view, setView] = useState<ViewState>('inventory');
+  const [view, setView] = useState<ViewState>('pos');
   const [products, setProducts] = useState<Product[]>([]);
   const [orders, setOrders] = useState<Order[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [shopDetails, setShopDetails] = useState<ShopDetails>(INITIAL_SHOP_DETAILS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  
+  // State to hold customer details when editing an order
+  const [editingCustomer, setEditingCustomer] = useState<{name: string, phone: string, place: string} | null>(null);
 
   // Load data from DB on mount
   useEffect(() => {
@@ -41,30 +50,36 @@ const App: React.FC = () => {
       try {
         // Load Products
         const dbProducts = await dbService.getProducts();
+        
         if (dbProducts.length === 0) {
-          // Seed initial products
-          for (const p of INITIAL_PRODUCTS) {
-            await dbService.saveProduct(p);
-          }
-          setProducts(INITIAL_PRODUCTS);
+            // Seed initial products if DB is empty
+            for (const p of INITIAL_PRODUCTS) {
+              await dbService.saveProduct(p);
+            }
+            setProducts(INITIAL_PRODUCTS);
         } else {
-          setProducts(dbProducts);
+            setProducts(dbProducts);
         }
 
         // Load Orders
         const dbOrders = await dbService.getOrders();
         setOrders(dbOrders.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()));
 
+        // Load Customers
+        const dbCustomers = await dbService.getCustomers();
+        setCustomers(dbCustomers);
+
         // Load Settings
         const dbSettings = await dbService.getShopDetails();
         if (dbSettings) {
-          setShopDetails(dbSettings);
+          setShopDetails({ ...INITIAL_SHOP_DETAILS, ...dbSettings });
         } else {
+          // Save default settings if none exist
           await dbService.saveShopDetails(INITIAL_SHOP_DETAILS);
+          setShopDetails(INITIAL_SHOP_DETAILS);
         }
       } catch (error) {
         console.error("Failed to load data from database", error);
-        setProducts(INITIAL_PRODUCTS);
       } finally {
         setLoading(false);
       }
@@ -75,6 +90,7 @@ const App: React.FC = () => {
   // Product Handlers
   const handleAddProduct = async (product: Product) => {
     await dbService.saveProduct(product);
+    // Optimistic update
     setProducts(prev => {
         const exists = prev.find(p => p.id === product.id);
         if (exists) {
@@ -112,7 +128,6 @@ const App: React.FC = () => {
       for (const item of order.items) {
         const productIndex = updatedProducts.findIndex(p => p.id === item.id);
         if (productIndex > -1) {
-          // Calculate new stock, ensuring it doesn't go below 0
           const currentStock = Number(updatedProducts[productIndex].stock) || 0;
           const newStock = Math.max(0, currentStock - item.qty);
           
@@ -121,13 +136,12 @@ const App: React.FC = () => {
             stock: newStock 
           };
           
-          // Update individual product in DB to persist stock change
           await dbService.saveProduct(updatedProducts[productIndex]);
         }
       }
-      
-      // Update local state to reflect new stock immediately
       setProducts(updatedProducts);
+      // Clear editing customer state after successful save
+      setEditingCustomer(null);
       
     } catch (error) {
       console.error("Error processing order:", error);
@@ -135,7 +149,31 @@ const App: React.FC = () => {
     }
   };
 
+  // Restores stock for an order before deleting it
+  const restoreStockForOrder = async (order: Order) => {
+    const updatedProducts = [...products];
+    for (const item of order.items) {
+        const productIndex = updatedProducts.findIndex(p => p.id === item.id);
+        if (productIndex > -1) {
+            // Add quantity back to stock
+            const currentStock = Number(updatedProducts[productIndex].stock) || 0;
+            updatedProducts[productIndex] = {
+                ...updatedProducts[productIndex],
+                stock: currentStock + item.qty
+            };
+            await dbService.saveProduct(updatedProducts[productIndex]);
+        }
+    }
+    setProducts(updatedProducts);
+  };
+
   const handleDeleteOrder = async (id: string) => {
+    const orderToDelete = orders.find(o => o.id === id);
+    if (orderToDelete) {
+        // Restore stock when deleting an order (voiding)
+        await restoreStockForOrder(orderToDelete);
+    }
+    
     await dbService.deleteOrder(id);
     setOrders(prev => prev.filter(o => o.id !== id));
   };
@@ -143,6 +181,45 @@ const App: React.FC = () => {
   const handleClearOrders = async () => {
     await dbService.clearOrders();
     setOrders([]);
+  };
+
+  // Logic to "Recall" an order for editing
+  // 1. Deletes order from DB
+  // 2. RESTORES stock (so if they save it again, it decrements correctly)
+  // 3. Loads items into POS Cart
+  // 4. Restores customer details
+  const handleEditOrder = async (order: Order) => {
+      // Restore stock and delete from history
+      await handleDeleteOrder(order.id);
+      
+      // Load items to cart
+      setCart(order.items);
+      
+      // Load customer details if present
+      if (order.customer) {
+          setEditingCustomer(order.customer);
+      } else {
+          setEditingCustomer(null);
+      }
+      
+      // Navigate to POS
+      setView('pos');
+  };
+
+  // Customer Handlers
+  const handleAddCustomer = async (customer: Customer) => {
+    await dbService.saveCustomer(customer);
+    setCustomers(prev => [...prev, customer]);
+  };
+
+  const handleUpdateCustomer = async (customer: Customer) => {
+    await dbService.saveCustomer(customer);
+    setCustomers(prev => prev.map(c => c.id === customer.id ? customer : c));
+  };
+
+  const handleDeleteCustomer = async (id: string) => {
+    await dbService.deleteCustomer(id);
+    setCustomers(prev => prev.filter(c => c.id !== id));
   };
 
   // Settings Handler
@@ -213,6 +290,30 @@ const App: React.FC = () => {
             </button>
 
             <button 
+              onClick={() => setView('customers')}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
+                view === 'customers' 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                  : 'hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <Users size={22} />
+              <span className="font-medium hidden lg:block">Customer Details</span>
+            </button>
+
+             <button 
+              onClick={() => setView('analysis')}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
+                view === 'analysis' 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+                  : 'hover:bg-slate-800 hover:text-white'
+              }`}
+            >
+              <BarChart3 size={22} />
+              <span className="font-medium hidden lg:block">Sales Analysis</span>
+            </button>
+
+            <button 
               onClick={() => setView('settings')}
               className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all duration-200 ${
                 view === 'settings' 
@@ -240,11 +341,15 @@ const App: React.FC = () => {
           {view === 'pos' && (
             <POS 
                 products={products} 
+                customers={customers}
                 cart={cart} 
                 setCart={setCart} 
-                onSaveOrder={handleSaveOrder} 
+                onSaveOrder={handleSaveOrder}
+                onSaveCustomer={handleAddCustomer}
                 shopDetails={shopDetails} 
                 onManageStock={() => setView('inventory')}
+                onViewHistory={() => setView('history')}
+                initialCustomer={editingCustomer}
             />
           )}
           {view === 'inventory' && (
@@ -255,6 +360,7 @@ const App: React.FC = () => {
                 onDeleteProduct={handleDeleteProduct}
                 onClearProducts={handleClearProducts}
                 onNavigateToPos={() => setView('pos')}
+                defaultTaxRate={shopDetails.defaultTaxRate}
             />
           )}
           {view === 'history' && (
@@ -262,13 +368,30 @@ const App: React.FC = () => {
                 orders={orders} 
                 onDeleteOrder={handleDeleteOrder}
                 onClearOrders={handleClearOrders}
+                onEditOrder={handleEditOrder}
                 shopDetails={shopDetails} 
+            />
+          )}
+           {view === 'analysis' && (
+            <DailyAnalysis 
+                orders={orders} 
+                shopDetails={shopDetails}
+            />
+          )}
+          {view === 'customers' && (
+            <Customers 
+                customers={customers}
+                onAddCustomer={handleAddCustomer}
+                onUpdateCustomer={handleUpdateCustomer}
+                onDeleteCustomer={handleDeleteCustomer}
             />
           )}
           {view === 'settings' && (
             <ShopSettings 
                 shopDetails={shopDetails} 
                 onSave={handleSaveSettings} 
+                orders={orders}
+                customers={customers}
             />
           )}
         </div>
