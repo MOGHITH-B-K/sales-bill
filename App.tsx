@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users } from 'lucide-react';
 import { POS } from './views/POS';
@@ -422,6 +421,7 @@ const App: React.FC = () => {
                 onManageStock={() => setView('inventory')}
                 onViewHistory={() => setView('history')}
                 initialCustomer={editingCustomer}
+                onAddProduct={handleAddProduct}
             />
           )}
           {view === 'inventory' && (

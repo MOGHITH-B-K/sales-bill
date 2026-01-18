@@ -1,10 +1,10 @@
-
 import React, { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History, Clock } from 'lucide-react';
+import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History, Clock, Plus, X, Sparkles, Loader2, Tag, Upload, Image as ImageIcon } from 'lucide-react';
 import { Product, CartItem, Order, ShopDetails, Customer } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { dbService } from '../services/db';
+import { generateProductDetails } from '../services/gemini';
 
 interface POSProps {
   products: Product[];
@@ -17,6 +17,7 @@ interface POSProps {
   onManageStock: () => void;
   onViewHistory: () => void;
   initialCustomer?: { name: string; phone: string; place: string } | null;
+  onAddProduct: (product: Product) => Promise<void>;
 }
 
 export const POS: React.FC<POSProps> = ({ 
@@ -29,7 +30,8 @@ export const POS: React.FC<POSProps> = ({
     shopDetails, 
     onManageStock,
     onViewHistory,
-    initialCustomer
+    initialCustomer,
+    onAddProduct
 }) => {
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,6 +48,17 @@ export const POS: React.FC<POSProps> = ({
   const [showCustomerSearch, setShowCustomerSearch] = useState(false);
   const [isCustomerSectionOpen, setIsCustomerSectionOpen] = useState(true);
   const searchWrapperRef = useRef<HTMLDivElement>(null);
+
+  // Quick Add Product Modal State
+  const [isQuickAddOpen, setIsQuickAddOpen] = useState(false);
+  const [quickAddProduct, setQuickAddProduct] = useState<Partial<Product>>({
+      name: '',
+      price: 0,
+      stock: 0,
+      category: 'Beverages',
+      productType: 'sale'
+  });
+  const [isLoadingAI, setIsLoadingAI] = useState(false);
 
   // Initialize customer state from prop if editing an order
   useEffect(() => {
@@ -114,6 +127,9 @@ export const POS: React.FC<POSProps> = ({
       const cats = new Set(products.map(p => p.category));
       return Array.from(cats).sort();
   }, [products]);
+
+  // Available categories for dropdown in Quick Add
+  const availableCategories = dynamicCategories.length > 0 ? dynamicCategories : ['General'];
 
   // Effect to reset category if it disappears (e.g. after deletion)
   useEffect(() => {
@@ -241,6 +257,62 @@ export const POS: React.FC<POSProps> = ({
     }
   };
 
+  // Quick Add Handlers
+  const handleQuickAddSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!quickAddProduct.name || quickAddProduct.price === undefined) return;
+      
+      const newProduct: Product = {
+          id: Date.now().toString(),
+          name: quickAddProduct.name,
+          price: Number(quickAddProduct.price),
+          stock: Number(quickAddProduct.stock),
+          category: quickAddProduct.category || 'General',
+          productType: quickAddProduct.productType || 'sale',
+          taxRate: shopDetails.defaultTaxRate, // Use default
+          minStockLevel: 5,
+          image: quickAddProduct.image,
+          description: quickAddProduct.description
+      };
+      
+      await onAddProduct(newProduct);
+      
+      // Auto add to cart
+      addToCart(newProduct, 1);
+      
+      // Reset and close
+      setQuickAddProduct({ name: '', price: 0, stock: 0, category: 'Beverages', productType: 'sale' });
+      setIsQuickAddOpen(false);
+  };
+  
+  const handleAIGenerate = async () => {
+    if (!quickAddProduct.name) return;
+    setIsLoadingAI(true);
+    const data = await generateProductDetails(quickAddProduct.name);
+    if (data) {
+      setQuickAddProduct(prev => ({
+        ...prev,
+        description: data.description || prev.description,
+        price: data.suggestedPrice || prev.price,
+        category: data.category || prev.category
+      }));
+    }
+    setIsLoadingAI(false);
+  };
+
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+            setQuickAddProduct(prev => ({ ...prev, image: reader.result as string }));
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <div className="flex flex-col lg:flex-row h-full gap-6 p-6">
       {/* Left Side: Menu */}
@@ -250,6 +322,13 @@ export const POS: React.FC<POSProps> = ({
              <div className="flex items-center gap-3">
                  <h2 className="text-2xl font-bold text-slate-800">Menu</h2>
                  <div className="flex gap-2">
+                    <button 
+                        onClick={() => setIsQuickAddOpen(true)}
+                        className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-bold flex items-center gap-1.5 transition-colors shadow-sm shadow-blue-200"
+                        title="Add New Product (Quick)"
+                    >
+                        <Plus size={16} /> Add Item
+                    </button>
                     <button 
                       onClick={onManageStock}
                       className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-slate-200"
@@ -524,6 +603,97 @@ export const POS: React.FC<POSProps> = ({
                         <button type="button" onClick={() => setQtyPromptProduct(null)} className="flex-1 py-2 rounded-lg bg-slate-100 font-medium text-slate-600">Cancel</button>
                         <button type="submit" className="flex-1 py-2 rounded-lg bg-blue-600 font-medium text-white">Add</button>
                     </div>
+                </form>
+            </div>
+        </div>
+      )}
+
+      {/* Quick Add Product Modal */}
+      {isQuickAddOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+                <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
+                    <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2"><Plus size={18} className="text-blue-600" /> Quick Add Item</h3>
+                    <button onClick={() => setIsQuickAddOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg">
+                        <X size={20} />
+                    </button>
+                </div>
+                <form onSubmit={handleQuickAddSubmit} className="p-5 space-y-4">
+                    
+                    {/* Image Quick Upload */}
+                    <div className="flex justify-center">
+                         <div className="relative w-20 h-20 bg-slate-50 rounded-lg border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
+                            {quickAddProduct.image ? (
+                                <img src={quickAddProduct.image} className="w-full h-full object-cover" />
+                            ) : (
+                                <ImageIcon size={20} className="text-slate-300" />
+                            )}
+                            <input type="file" accept="image/*" onChange={handleImageUpload} className="absolute inset-0 opacity-0 cursor-pointer" />
+                         </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Product Name</label>
+                        <div className="flex gap-2">
+                            <input 
+                                type="text" 
+                                autoFocus
+                                required
+                                value={quickAddProduct.name} 
+                                onChange={(e) => setQuickAddProduct({...quickAddProduct, name: e.target.value})} 
+                                className="flex-1 px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                                placeholder="e.g. Chocolate Cake"
+                            />
+                            <button type="button" onClick={handleAIGenerate} disabled={isLoadingAI || !quickAddProduct.name} className="px-3 py-2 bg-purple-50 text-purple-600 rounded-lg border border-purple-100 hover:bg-purple-100 disabled:opacity-50 transition-colors">
+                                {isLoadingAI ? <Loader2 className="animate-spin" size={16} /> : <Sparkles size={16} />}
+                            </button>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Price</label>
+                            <input 
+                                type="number" 
+                                required
+                                min="0"
+                                step="0.01"
+                                value={quickAddProduct.price} 
+                                onChange={(e) => setQuickAddProduct({...quickAddProduct, price: parseFloat(e.target.value)})} 
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            />
+                        </div>
+                         <div>
+                            <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Stock</label>
+                            <input 
+                                type="number" 
+                                required
+                                min="0"
+                                value={quickAddProduct.stock} 
+                                onChange={(e) => setQuickAddProduct({...quickAddProduct, stock: parseInt(e.target.value)})} 
+                                className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                            />
+                        </div>
+                    </div>
+
+                    <div>
+                         <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
+                         <select 
+                            value={quickAddProduct.category} 
+                            onChange={(e) => setQuickAddProduct({...quickAddProduct, category: e.target.value})} 
+                            className="w-full px-3 py-2 rounded-lg border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none text-sm"
+                        >
+                            {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                            <option value="General">General</option>
+                        </select>
+                    </div>
+
+                    <button 
+                        type="submit" 
+                        className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-lg shadow-blue-200 transition-all text-sm mt-2"
+                    >
+                        Save & Add to Bill
+                    </button>
                 </form>
             </div>
         </div>
