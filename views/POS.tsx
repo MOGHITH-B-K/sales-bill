@@ -1,7 +1,7 @@
 
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { Search, Trash2, ShoppingCart, Coffee, Utensils, CreditCard, ToggleLeft, ToggleRight, AlertCircle, Package, User, Phone, MapPin, ChevronDown, ChevronUp, History } from 'lucide-react';
-import { Product, CartItem, CATEGORIES, Order, ShopDetails, Customer } from '../types';
+import { Product, CartItem, Order, ShopDetails, Customer } from '../types';
 import { ProductCard } from '../components/ProductCard';
 import { ReceiptModal } from '../components/ReceiptModal';
 import { dbService } from '../services/db';
@@ -109,10 +109,18 @@ export const POS: React.FC<POSProps> = ({
 
   const grandTotal = subTotal + taxTotal;
 
+  // Derive categories only from products to respect "Deleted" categories (empty ones)
   const dynamicCategories = useMemo(() => {
-      const cats = new Set([...CATEGORIES, ...products.map(p => p.category)]);
+      const cats = new Set(products.map(p => p.category));
       return Array.from(cats).sort();
   }, [products]);
+
+  // Effect to reset category if it disappears (e.g. after deletion)
+  useEffect(() => {
+      if (selectedCategory !== 'All' && !dynamicCategories.includes(selectedCategory)) {
+          setSelectedCategory('All');
+      }
+  }, [dynamicCategories, selectedCategory]);
 
   // Handlers
   const initiateAddToCart = (product: Product) => {

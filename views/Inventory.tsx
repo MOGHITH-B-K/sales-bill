@@ -1,7 +1,7 @@
 
 import React, { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, ArrowRight, AlertCircle, Download, FileSpreadsheet } from 'lucide-react';
-import { Product, CATEGORIES } from '../types';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download } from 'lucide-react';
+import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
 
 interface InventoryProps {
@@ -43,11 +43,14 @@ export const Inventory: React.FC<InventoryProps> = ({
 
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Combine default categories with any unique categories found in existing products
-  const availableCategories = Array.from(new Set([...CATEGORIES, ...products.map(p => p.category)])).sort();
+  // Derive categories strictly from existing products. 
+  // This allows "deleting" a category by simply removing/editing all products in it.
+  const availableCategories = Array.from(new Set(products.map(p => p.category))).sort();
+  // Ensure we always have at least one category for the dropdown if list is empty
+  const dropdownCategories = availableCategories.length > 0 ? availableCategories : ['General'];
 
   const resetForm = () => {
-    setCurrentProduct({ name: '', price: 0, stock: 0, category: 'Beverages', description: '', image: '', taxRate: defaultTaxRate, minStockLevel: 5 });
+    setCurrentProduct({ name: '', price: 0, stock: 0, category: dropdownCategories[0], description: '', image: '', taxRate: defaultTaxRate, minStockLevel: 5 });
     setEditId(null);
     setIsModalOpen(false);
     setRedirectAfterSave(false);
@@ -86,7 +89,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   const handleEdit = (product: Product) => {
     setCurrentProduct(product);
     setEditId(product.id);
-    setIsCustomCategory(!CATEGORIES.includes(product.category));
+    setIsCustomCategory(false); // Default to dropdown, let them switch if they want
     setIsModalOpen(true);
   };
 
@@ -108,7 +111,9 @@ export const Inventory: React.FC<InventoryProps> = ({
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCurrentProduct(prev => ({ ...prev, image: reader.result as string }));
+        if (typeof reader.result === 'string') {
+            setCurrentProduct(prev => ({ ...prev, image: reader.result as string }));
+        }
       };
       reader.readAsDataURL(file);
     }
@@ -144,8 +149,8 @@ export const Inventory: React.FC<InventoryProps> = ({
   };
 
   // Helper to parse CSV lines respecting quotes
-  const parseCSVLine = (text: string) => {
-    const result = [];
+  const parseCSVLine = (text: string): string[] => {
+    const result: string[] = [];
     let cell = '';
     let inQuotes = false;
     
@@ -171,7 +176,9 @@ export const Inventory: React.FC<InventoryProps> = ({
 
     const reader = new FileReader();
     reader.onload = async (event) => {
-        const text = event.target?.result as string;
+        const text = event.target?.result;
+        if (typeof text !== 'string') return;
+
         const lines = text.split(/\r\n|\n/);
         // Skip header
         const dataLines = lines.slice(1);
@@ -186,11 +193,11 @@ export const Inventory: React.FC<InventoryProps> = ({
             if (parts.length < 4) continue;
 
             // Remove surrounding quotes if they exist after splitting
-            const clean = (val: string) => val ? val.replace(/^"|"$/g, '').replace(/""/g, '"').trim() : '';
+            const clean = (val: string | undefined) => val ? val.replace(/^"|"$/g, '').replace(/""/g, '"').trim() : '';
 
             const name = clean(parts[1]);
-            const price = parseFloat(parts[2]);
-            const stock = parseInt(parts[3]);
+            const price = parseFloat(parts[2] || '0');
+            const stock = parseInt(parts[3] || '0');
             const category = clean(parts[4]) || 'Other';
             
             if (name && !isNaN(price)) {
@@ -201,8 +208,8 @@ export const Inventory: React.FC<InventoryProps> = ({
                     stock: isNaN(stock) ? 0 : stock,
                     category,
                     description: clean(parts[5]),
-                    taxRate: parseFloat(parts[6]) || defaultTaxRate,
-                    minStockLevel: parseInt(parts[7]) || 5
+                    taxRate: parseFloat(parts[6] || '0') || defaultTaxRate,
+                    minStockLevel: parseInt(parts[7] || '0') || 5
                 };
                 await onAddProduct(newProduct);
                 count++;
@@ -248,7 +255,7 @@ export const Inventory: React.FC<InventoryProps> = ({
         const confirmMsg = `There are ${productsInCat.length} products in "${categoryToDelete}".\n\nTo delete this category, these products must be moved to "Uncategorized" or another category.`;
         if(!window.confirm(confirmMsg)) return;
 
-        // Move to default 'Food' or first available
+        // Move to default 'Other' or first available
         const fallbackCategory = 'Other'; 
         
         for (const p of productsInCat) {
@@ -479,7 +486,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                         />
                        <button 
                          type="button" 
-                         onClick={() => { setIsCustomCategory(false); setCurrentProduct(prev => ({...prev, category: 'Beverages'})); }}
+                         onClick={() => { setIsCustomCategory(false); setCurrentProduct(prev => ({...prev, category: dropdownCategories[0] || 'General'})); }}
                          className="px-3 py-2 bg-slate-100 text-slate-600 rounded-xl hover:bg-slate-200"
                        >
                          Cancel
@@ -491,7 +498,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                         onChange={handleCategoryChange} 
                         className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:outline-none"
                     >
-                        {availableCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                        {dropdownCategories.map(c => <option key={c} value={c}>{c}</option>)}
                         <option disabled>──────────</option>
                         <option value="___NEW___">+ Create New Category...</option>
                     </select>
@@ -535,9 +542,11 @@ export const Inventory: React.FC<InventoryProps> = ({
                     </button>
                 </div>
                 <div className="p-4 max-h-[60vh] overflow-y-auto">
-                    <p className="text-xs text-slate-500 mb-3">Deleting a category will move its products to "Other" if any exist.</p>
+                    <p className="text-xs text-slate-500 mb-3">Deleting a category here will move its products to "Other". Empty categories are removed automatically.</p>
                     <div className="space-y-2">
-                        {availableCategories.map(cat => (
+                        {availableCategories.length === 0 ? (
+                            <div className="text-center py-4 text-slate-400 text-sm">No categories found.</div>
+                        ) : availableCategories.map(cat => (
                             <div key={cat} className="flex items-center justify-between p-3 bg-white border border-slate-100 rounded-lg shadow-sm">
                                 <span className="font-medium text-slate-700">{cat}</span>
                                 <button 

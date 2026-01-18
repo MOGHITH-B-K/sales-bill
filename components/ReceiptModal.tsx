@@ -1,7 +1,8 @@
 
 import React from 'react';
-import { X, Printer } from 'lucide-react';
+import { X, Printer, Download } from 'lucide-react';
 import { Order, ShopDetails } from '../types';
+import html2canvas from 'html2canvas';
 
 interface ReceiptModalProps {
   order: Order | null;
@@ -16,21 +17,57 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
     window.print();
   };
 
+  const handleDownload = async () => {
+    const element = document.getElementById('printable-receipt');
+    if (element) {
+        // Temporarily adjust style for clean capture
+        const originalStyle = element.style.cssText;
+        element.style.background = 'white';
+        element.style.padding = '20px';
+        
+        try {
+            const canvas = await html2canvas(element, {
+                scale: 2, // Higher quality
+                backgroundColor: '#ffffff',
+                logging: false,
+                useCORS: true // Enable cross-origin for logo images
+            });
+            
+            const link = document.createElement('a');
+            link.download = `Receipt_${order.id}.png`;
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        } catch (err) {
+            console.error("Failed to generate receipt image", err);
+            alert("Could not download receipt. Please try printing to PDF instead.");
+        } finally {
+            element.style.cssText = originalStyle;
+        }
+    }
+  };
+
   const subTotal = order.total - (order.taxTotal || 0);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static">
+    <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4 print:p-0 print:bg-white print:static print:z-auto">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh] print:shadow-none print:w-full print:max-w-none print:max-h-none print:rounded-none">
         
         {/* Header - Hidden in Print */}
-        <div className="flex justify-between items-center p-4 border-b border-slate-100 print:hidden">
-          <h3 className="font-bold text-lg text-slate-800">Print Receipt</h3>
+        <div className="flex justify-between items-center p-4 border-b border-slate-100 print:hidden bg-white">
+          <h3 className="font-bold text-lg text-slate-800">Transaction Complete</h3>
           <div className="flex gap-2">
+             <button 
+              onClick={handleDownload}
+              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
+              title="Download as Image"
+            >
+              <Download size={16} /> Save
+            </button>
             <button 
               onClick={handlePrint}
               className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Printer size={16} /> Print Bill
+              <Printer size={16} /> Print
             </button>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors">
               <X size={20} />
@@ -39,13 +76,23 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
         </div>
 
         {/* Printable Area - Optimized for 58mm/80mm Thermal Printers */}
-        <div id="printable-receipt" className="p-8 overflow-y-auto bg-white print:p-0">
+        <div id="printable-receipt" className="p-8 overflow-y-auto bg-white print:p-0 print:overflow-visible">
           <style>
             {`
               @media print {
-                @page { margin: 0; }
-                body * { visibility: hidden; }
-                #printable-receipt, #printable-receipt * { visibility: visible; }
+                @page { margin: 0; size: auto; }
+                body { background-color: white; }
+                /* Hide everything */
+                body * { visibility: hidden; height: 0; overflow: hidden; }
+                
+                /* Show receipt */
+                #printable-receipt, #printable-receipt * { 
+                    visibility: visible; 
+                    height: auto; 
+                    overflow: visible;
+                }
+                
+                /* Position receipt at top-left */
                 #printable-receipt { 
                   position: absolute; 
                   left: 0; 
@@ -53,11 +100,15 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                   width: 100%;
                   max-width: 80mm; /* Standard Thermal width constraint */
                   padding: 10px 5px;
-                  font-family: 'Courier New', Courier, monospace; /* Monospace for alignment */
+                  margin: 0;
+                  font-family: 'Courier New', Courier, monospace;
                   color: black;
+                  background-color: white;
+                  z-index: 9999;
                 }
-                .no-print { display: none; }
-                .dashed-line { border-top: 1px dashed black; margin: 8px 0; }
+                
+                .no-print { display: none !important; }
+                .dashed-line { border-top: 1px dashed black !important; margin: 8px 0; }
               }
             `}
           </style>
