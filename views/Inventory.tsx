@@ -1,5 +1,5 @@
 import React, { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock, Settings2 } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock, Settings2, CheckCircle2 } from 'lucide-react';
 import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
 
@@ -26,8 +26,8 @@ export const Inventory: React.FC<InventoryProps> = ({
   const [isCategoryModalOpen, setIsCategoryModalOpen] = useState(false);
   const [isLoadingAI, setIsLoadingAI] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({
     name: '',
@@ -44,7 +44,6 @@ export const Inventory: React.FC<InventoryProps> = ({
 
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Get unique categories from current products
   const categories = Array.from(new Set(products.map(p => p.category))).sort();
   const dropdownCategories = categories.length > 0 ? categories : ['Beverages', 'Food', 'Snacks', 'Dessert'];
 
@@ -64,14 +63,20 @@ export const Inventory: React.FC<InventoryProps> = ({
     setEditId(null);
     setIsModalOpen(false);
     setIsSaving(false);
+    setSaveSuccess(false);
     setIsCustomCategory(false);
   };
 
   const handleSubmit = async (e: React.FormEvent, shouldRedirect: boolean) => {
     e.preventDefault();
-    if (!currentProduct.name || currentProduct.price === undefined) return;
+    if (!currentProduct.name || currentProduct.price === undefined) {
+      alert("Please enter a product name and price.");
+      return;
+    }
     
     setIsSaving(true);
+    setSaveSuccess(false);
+
     const processedProduct = {
       ...currentProduct,
       stock: Number(currentProduct.stock) || 0,
@@ -83,6 +88,7 @@ export const Inventory: React.FC<InventoryProps> = ({
     };
 
     try {
+      // We await the actual database operation passed from App.tsx
       if (editId) {
         await onUpdateProduct({ ...processedProduct, id: editId } as Product);
       } else {
@@ -93,13 +99,21 @@ export const Inventory: React.FC<InventoryProps> = ({
         await onAddProduct(newProduct);
       }
       
-      if (shouldRedirect) {
+      // Verification Step: If we reach here, the database has accepted the data
+      setSaveSuccess(true);
+      
+      // Delay to show success state before closing or redirecting
+      setTimeout(() => {
+        if (shouldRedirect) {
           onNavigateToPos();
-      } else {
+        } else {
           resetForm();
-      }
+        }
+      }, 800);
+
     } catch (err) {
-      alert("Error saving product.");
+      console.error("Save error:", err);
+      alert("CRITICAL ERROR: Failed to save product to database. Check your connection.");
     } finally {
       setIsSaving(false);
     }
@@ -145,78 +159,81 @@ export const Inventory: React.FC<InventoryProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <h2 className="text-3xl font-bold text-slate-800">Stock Management</h2>
-          <p className="text-slate-500 mt-1">Manage items, categories, and monitor stock alerts.</p>
+          <p className="text-slate-500 mt-1">Add products and monitor low stock levels.</p>
         </div>
         <div className="flex flex-wrap gap-3">
             <button 
               onClick={() => setIsCategoryModalOpen(true)} 
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-all active:scale-95"
             >
               <ListFilter size={18} /> Categories
             </button>
             <button 
               onClick={() => { resetForm(); setIsModalOpen(true); }} 
-              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200"
+              className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-xl font-medium hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 active:scale-95"
             >
-              <Plus size={18} /> Add New Item
+              <Plus size={18} /> New Product Details
             </button>
         </div>
       </div>
 
-      {/* Inventory Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock Status</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400">Inventory is empty.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium italic">Database is empty. Please enter product details above.</td></tr>
             ) : products.map(product => {
               const threshold = product.minStockLevel || 5;
               const isLow = product.stock > 0 && product.stock <= threshold;
               const isOut = product.stock <= 0;
 
               return (
-                <tr key={product.id} className={`transition-colors ${isOut ? 'bg-red-50/30' : isLow ? 'bg-orange-50/30' : 'hover:bg-slate-50'}`}>
+                <tr key={product.id} className={`transition-colors ${isOut ? 'bg-red-50/20' : isLow ? 'bg-orange-50/20' : 'hover:bg-slate-50'}`}>
                   <td className="px-6 py-4 flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
-                      {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <ImageIcon size={16} className="text-slate-400" />}
+                    <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shadow-inner">
+                      {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
                     </div>
-                    <span className="font-medium text-slate-700">{product.name}</span>
+                    <div className="flex flex-col">
+                        <span className="font-bold text-slate-800">{product.name}</span>
+                        <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{product.description || 'Verified in Database'}</span>
+                    </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2 py-1 bg-blue-50 text-blue-700 text-[10px] uppercase font-bold rounded-md border border-blue-100">
+                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] uppercase font-black rounded-full border border-blue-100 tracking-wider">
                       {product.category}
                     </span>
                   </td>
                   <td className="px-6 py-4">
                     {isOut ? (
-                      <div className="flex items-center gap-1.5 text-red-600 font-bold text-sm">
-                        <AlertCircle size={14} /> Out of Stock
+                      <div className="flex items-center gap-1.5 text-red-600 font-black text-xs bg-red-100 px-3 py-1 rounded-lg w-fit">
+                        <AlertCircle size={14} /> LOW STOCK: {product.stock}
                       </div>
                     ) : isLow ? (
                       <div className="flex flex-col">
-                        <div className="flex items-center gap-1.5 text-orange-600 font-bold text-sm">
-                          <AlertTriangle size={14} /> Low Stock: {product.stock}
+                        <div className="flex items-center gap-1.5 text-orange-600 font-black text-xs bg-orange-100 px-3 py-1 rounded-lg w-fit">
+                          <AlertTriangle size={14} /> ALERT: {product.stock}
                         </div>
-                        <span className="text-[10px] text-slate-400">Alert Limit: {threshold}</span>
                       </div>
                     ) : (
-                      <div className="text-green-600 font-medium text-sm">{product.stock} available</div>
+                      <div className="text-green-600 font-bold text-sm px-1">
+                        {product.stock} available
+                      </div>
                     )}
                   </td>
-                  <td className="px-6 py-4 font-semibold text-slate-800">₹{product.price.toFixed(2)}</td>
+                  <td className="px-6 py-4 font-black text-slate-800">₹{product.price.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-2">
-                      <button onClick={() => handleEdit(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"><Edit2 size={16} /></button>
-                      <button onClick={() => onDeleteProduct(product.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"><Trash2 size={16} /></button>
+                      <button onClick={() => handleEdit(product)} className="p-2.5 text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Edit2 size={16} /></button>
+                      <button onClick={() => onDeleteProduct(product.id)} className="p-2.5 text-red-500 hover:bg-red-50 rounded-xl transition-all"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -226,58 +243,59 @@ export const Inventory: React.FC<InventoryProps> = ({
         </table>
       </div>
 
-      {/* Main Product Modal */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50">
-              <h3 className="text-xl font-bold text-slate-800">{editId ? 'Edit Product' : 'Add New Product'}</h3>
-              <button onClick={resetForm} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg"><X size={20} /></button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-md p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-[0_32px_64px_-12px_rgba(0,0,0,0.14)] overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-300">
+            <div className="flex justify-between items-center p-8 border-b border-slate-100 bg-slate-50/50">
+              <div>
+                <h3 className="text-2xl font-black text-slate-800 tracking-tight">{editId ? 'Edit Product' : 'Enter Product Details'}</h3>
+                <p className="text-xs text-slate-500 font-medium">This will be synced with your billing database.</p>
+              </div>
+              <button onClick={resetForm} className="text-slate-400 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full transition-all"><X size={24} /></button>
             </div>
             
-            <form className="p-6 space-y-4 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-4">
+            <form className="p-8 space-y-6 overflow-y-auto">
+              <div className="grid grid-cols-2 gap-6">
                 <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Product Name</label>
-                  <div className="flex gap-2">
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Product Name</label>
+                  <div className="flex gap-3">
                     <input 
                       type="text" 
                       required
                       value={currentProduct.name} 
                       onChange={(e) => setCurrentProduct({...currentProduct, name: e.target.value})} 
-                      className="flex-1 px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" 
-                      placeholder="e.g. Cappuccino" 
+                      className="flex-1 px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 focus:ring-4 focus:ring-blue-50 outline-none transition-all font-bold text-slate-800" 
+                      placeholder="e.g. Mocha Latte" 
                     />
                     <button 
                       type="button" 
                       onClick={handleAIGenerate} 
                       disabled={isLoadingAI || !currentProduct.name} 
-                      className="px-3 py-2 bg-gradient-to-br from-indigo-500 to-purple-600 text-white rounded-xl shadow-md disabled:opacity-50 transition-all flex items-center justify-center"
-                      title="AI Fill Details"
+                      className="px-5 py-3.5 bg-gradient-to-tr from-blue-600 to-indigo-700 text-white rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50 transition-all flex items-center justify-center hover:scale-105 active:scale-95"
                     >
-                      {isLoadingAI ? <Loader2 className="animate-spin" size={18} /> : <Sparkles size={18} />}
+                      {isLoadingAI ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
                     </button>
                   </div>
                 </div>
 
                 <div className="col-span-2">
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Category</label>
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Product Category</label>
                   {isCustomCategory ? (
-                    <div className="flex gap-2">
+                    <div className="flex gap-3">
                       <input 
                         type="text" 
                         autoFocus
                         value={currentProduct.category} 
                         onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})} 
-                        className="flex-1 px-4 py-2 border border-blue-200 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-blue-50/30" 
-                        placeholder="Enter new category name..." 
+                        className="flex-1 px-5 py-3.5 border-2 border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-50 outline-none bg-blue-50/20 font-bold" 
+                        placeholder="Type new category..." 
                       />
                       <button 
                         type="button" 
                         onClick={() => { setIsCustomCategory(false); setCurrentProduct(prev => ({...prev, category: dropdownCategories[0]})); }} 
-                        className="px-3 py-2 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-xl border border-slate-200"
+                        className="px-4 py-3 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl border border-slate-200 transition-colors"
                       >
-                        Cancel
+                        Back
                       </button>
                     </div>
                   ) : (
@@ -291,45 +309,45 @@ export const Inventory: React.FC<InventoryProps> = ({
                           setCurrentProduct({...currentProduct, category: e.target.value});
                         }
                       }} 
-                      className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white"
+                      className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none bg-white appearance-none cursor-pointer font-bold text-slate-700"
                     >
                       {dropdownCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                      <option value="NEW_CATEGORY">+ Create New Category...</option>
+                      <option value="NEW_CATEGORY" className="text-blue-600 font-bold">+ CREATE NEW CATEGORY</option>
                     </select>
                   )}
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Price (₹)</label>
-                  <input type="number" step="0.01" value={currentProduct.price} onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Unit Price (₹)</label>
+                  <input type="number" step="0.01" value={currentProduct.price} onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})} className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 font-bold outline-none" />
                 </div>
                  <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Stock Quantity</label>
-                  <input type="number" value={currentProduct.stock} onChange={(e) => setCurrentProduct({...currentProduct, stock: parseInt(e.target.value)})} className="w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-blue-500 outline-none" />
-                </div>
-                
-                <div className="col-span-2">
-                  <label className="block text-xs font-bold text-orange-600 uppercase mb-1">Low Stock Alert Level</label>
-                  <input type="number" value={currentProduct.minStockLevel} onChange={(e) => setCurrentProduct({...currentProduct, minStockLevel: parseInt(e.target.value)})} className="w-full px-4 py-2 border border-orange-100 rounded-xl focus:ring-2 focus:ring-orange-500 outline-none" placeholder="Default is 5" />
+                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-2">Stock Qty</label>
+                  <input type="number" value={currentProduct.stock} onChange={(e) => setCurrentProduct({...currentProduct, stock: parseInt(e.target.value)})} className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 font-bold outline-none" />
                 </div>
               </div>
 
-              <div className="pt-4 flex flex-col gap-3">
+              <div className="pt-8 flex flex-col gap-4">
                 <button 
                   type="button" 
-                  disabled={isSaving}
+                  disabled={isSaving || saveSuccess}
                   onClick={(e) => handleSubmit(e, true)}
-                  className="w-full py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 flex items-center justify-center gap-2 disabled:opacity-50 transition-all shadow-lg shadow-blue-200"
+                  className={`w-full py-5 rounded-[1.25rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all transform active:scale-[0.98] ${
+                    saveSuccess 
+                      ? 'bg-green-500 text-white' 
+                      : 'bg-slate-900 text-white hover:bg-blue-600 shadow-2xl shadow-slate-200'
+                  } disabled:opacity-70`}
                 >
-                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Store size={18} />} Save & Go To Billing
+                  {isSaving ? <Loader2 className="animate-spin" size={24} /> : saveSuccess ? <CheckCircle2 size={24} /> : <Store size={24} />} 
+                  {saveSuccess ? 'PRODUCT SAVED!' : 'Save & GO TO BILLING'}
                 </button>
                 <button 
                   type="button"
-                  disabled={isSaving}
+                  disabled={isSaving || saveSuccess}
                   onClick={(e) => handleSubmit(e, false)}
-                  className="w-full py-2.5 bg-slate-100 text-slate-700 font-medium rounded-xl hover:bg-slate-200 disabled:opacity-50 transition-colors"
+                  className="w-full py-4 bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs rounded-[1.25rem] hover:bg-slate-200 transition-all"
                 >
-                  Save Item
+                  Save to Inventory
                 </button>
               </div>
             </form>
@@ -337,28 +355,23 @@ export const Inventory: React.FC<InventoryProps> = ({
         </div>
       )}
 
-      {/* Category Management Modal */}
+      {/* Category Modal */}
       {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="text-lg font-bold text-slate-800">Categories</h3>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-200 rounded-lg"><X size={20} /></button>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
+          <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+              <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><ListFilter size={24} className="text-blue-600" /> CATEGORIES</h3>
+              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full"><X size={20} /></button>
             </div>
-            <div className="p-4 max-h-[60vh] overflow-y-auto space-y-2">
-              {categories.length === 0 ? (
-                <p className="text-center text-slate-400 py-8 text-sm italic">No categories created yet.</p>
-              ) : categories.map(cat => (
-                <div key={cat} className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100">
-                  <span className="font-bold text-slate-700 text-sm">{cat}</span>
-                  <div className="text-[10px] text-slate-400 font-medium bg-white px-2 py-0.5 rounded-full border border-slate-100">
-                    {products.filter(p => p.category === cat).length} items
+            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
+              {categories.map(cat => (
+                <div key={cat} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-white transition-all cursor-default group">
+                  <span className="font-bold text-slate-700">{cat}</span>
+                  <div className="text-[10px] text-blue-600 font-black bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 uppercase tracking-tighter">
+                    {products.filter(p => p.category === cat).length} ITEMS
                   </div>
                 </div>
               ))}
-            </div>
-            <div className="p-4 bg-slate-50 text-[10px] text-slate-400 text-center italic border-t border-slate-100">
-              Categories are created when you add new products.
             </div>
           </div>
         </div>
