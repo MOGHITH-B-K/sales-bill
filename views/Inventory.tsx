@@ -1,7 +1,9 @@
-import React, { useState, useRef } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock, Settings2, CheckCircle2 } from 'lucide-react';
+
+import React, { useState, useRef, useEffect } from 'react';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, Download, Tag, Clock, Settings2, CheckCircle2, Cloud, CloudOff } from 'lucide-react';
 import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
+import { dbService } from '../services/db';
 
 interface InventoryProps {
   products: Product[];
@@ -28,6 +30,7 @@ export const Inventory: React.FC<InventoryProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [isCustomCategory, setIsCustomCategory] = useState(false);
+  const [dbConnected, setDbConnected] = useState(dbService.isConfigured());
   
   const [currentProduct, setCurrentProduct] = useState<Partial<Product>>({
     name: '',
@@ -88,7 +91,6 @@ export const Inventory: React.FC<InventoryProps> = ({
     };
 
     try {
-      // We await the actual database operation passed from App.tsx
       if (editId) {
         await onUpdateProduct({ ...processedProduct, id: editId } as Product);
       } else {
@@ -99,10 +101,8 @@ export const Inventory: React.FC<InventoryProps> = ({
         await onAddProduct(newProduct);
       }
       
-      // Verification Step: If we reach here, the database has accepted the data
       setSaveSuccess(true);
       
-      // Delay to show success state before closing or redirecting
       setTimeout(() => {
         if (shouldRedirect) {
           onNavigateToPos();
@@ -111,9 +111,9 @@ export const Inventory: React.FC<InventoryProps> = ({
         }
       }, 800);
 
-    } catch (err) {
+    } catch (err: any) {
       console.error("Save error:", err);
-      alert("CRITICAL ERROR: Failed to save product to database. Check your connection.");
+      alert(err.message || "CRITICAL ERROR: Failed to save product to database.");
     } finally {
       setIsSaving(false);
     }
@@ -141,25 +141,23 @@ export const Inventory: React.FC<InventoryProps> = ({
     setIsLoadingAI(false);
   };
 
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        if (typeof reader.result === 'string') {
-            setCurrentProduct(prev => ({ ...prev, image: reader.result as string }));
-        }
-      };
-      reader.readAsDataURL(file);
-    }
-  };
-
   return (
     <div className="p-6 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
-          <h2 className="text-3xl font-bold text-slate-800">Stock Management</h2>
-          <p className="text-slate-500 mt-1">Add products and monitor low stock levels.</p>
+          <div className="flex items-center gap-3">
+            <h2 className="text-3xl font-bold text-slate-800">Stock Management</h2>
+            {dbConnected ? (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold border border-green-100 shadow-sm">
+                    <Cloud size={12} /> CLOUD SYNC ACTIVE
+                </div>
+            ) : (
+                <div className="flex items-center gap-1.5 px-2 py-1 bg-amber-50 text-amber-600 rounded-full text-[10px] font-bold border border-amber-100 shadow-sm">
+                    <CloudOff size={12} /> LOCAL MODE
+                </div>
+            )}
+          </div>
+          <p className="text-slate-500 mt-1">Connect product details to your billing database.</p>
         </div>
         <div className="flex flex-wrap gap-3">
             <button 
@@ -190,7 +188,7 @@ export const Inventory: React.FC<InventoryProps> = ({
           </thead>
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium italic">Database is empty. Please enter product details above.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 font-medium italic">Your database is empty. Enter product details to get started.</td></tr>
             ) : products.map(product => {
               const threshold = product.minStockLevel || 5;
               const isLow = product.stock > 0 && product.stock <= threshold;
@@ -204,7 +202,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                     </div>
                     <div className="flex flex-col">
                         <span className="font-bold text-slate-800">{product.name}</span>
-                        <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{product.description || 'Verified in Database'}</span>
+                        <span className="text-[10px] text-slate-400 truncate max-w-[200px]">{product.description || 'Database Sync Verified'}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
@@ -249,7 +247,7 @@ export const Inventory: React.FC<InventoryProps> = ({
             <div className="flex justify-between items-center p-8 border-b border-slate-100 bg-slate-50/50">
               <div>
                 <h3 className="text-2xl font-black text-slate-800 tracking-tight">{editId ? 'Edit Product' : 'Enter Product Details'}</h3>
-                <p className="text-xs text-slate-500 font-medium">This will be synced with your billing database.</p>
+                <p className="text-xs text-slate-500 font-medium">Synced with Supabase Cloud Database.</p>
               </div>
               <button onClick={resetForm} className="text-slate-400 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full transition-all"><X size={24} /></button>
             </div>
@@ -351,28 +349,6 @@ export const Inventory: React.FC<InventoryProps> = ({
                 </button>
               </div>
             </form>
-          </div>
-        </div>
-      )}
-
-      {/* Category Modal */}
-      {isCategoryModalOpen && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/60 backdrop-blur-md p-4">
-          <div className="bg-white rounded-[2rem] w-full max-w-sm shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-              <h3 className="text-xl font-black text-slate-800 flex items-center gap-2"><ListFilter size={24} className="text-blue-600" /> CATEGORIES</h3>
-              <button onClick={() => setIsCategoryModalOpen(false)} className="text-slate-400 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full"><X size={20} /></button>
-            </div>
-            <div className="p-6 max-h-[60vh] overflow-y-auto space-y-3">
-              {categories.map(cat => (
-                <div key={cat} className="flex items-center justify-between p-4 bg-slate-50 rounded-2xl border border-slate-100 hover:border-blue-300 hover:bg-white transition-all cursor-default group">
-                  <span className="font-bold text-slate-700">{cat}</span>
-                  <div className="text-[10px] text-blue-600 font-black bg-blue-50 px-3 py-1.5 rounded-full border border-blue-100 uppercase tracking-tighter">
-                    {products.filter(p => p.category === cat).length} ITEMS
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       )}

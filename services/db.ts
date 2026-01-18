@@ -1,3 +1,4 @@
+
 import { supabase } from './supabaseClient';
 import { Product, Order, ShopDetails, Customer } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -25,9 +26,8 @@ export const dbService = {
   isConfigured: () => {
     const url = (supabase as any).supabaseUrl || "";
     const key = (supabase as any).supabaseKey || "";
-    const isPlaceholder = url === 'https://placeholder.supabase.co' || key === 'placeholder-key';
-    const isMissing = !url || !key;
-    return !isMissing && !isPlaceholder;
+    const isPlaceholder = url === 'https://placeholder.supabase.co' || !url.includes('supabase.co');
+    return url && key && !isPlaceholder;
   },
 
   subscribeToTables(handlers: Record<string, (payload: any) => void>): RealtimeChannel | null {
@@ -48,20 +48,29 @@ export const dbService = {
 
   async getProducts() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
-    const { data, error } = await supabase.from('products').select('*');
-    if (error) return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
+    const { data, error } = await supabase.from('products').select('*').order('name');
+    if (error) {
+      console.warn("DB Fetch Error, falling back to local:", error);
+      return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
+    }
     return data as Product[];
   },
 
   async saveProduct(product: Product) {
+    // 1. Update Local Cache first for speed
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     const index = products.findIndex(p => p.id === product.id);
     if (index >= 0) products[index] = product;
     else products.push(product);
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products);
 
+    // 2. Verified Cloud Save
     if (this.isConfigured()) {
-      await supabase.from('products').upsert(product);
+      const { error } = await supabase.from('products').upsert(product);
+      if (error) {
+        console.error("Cloud Save Failed:", error);
+        throw new Error("Database connection failed. Item saved locally only.");
+      }
     }
   },
 
@@ -69,7 +78,8 @@ export const dbService = {
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products.filter(p => p.id !== id));
     if (this.isConfigured()) {
-      await supabase.from('products').delete().eq('id', id);
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) throw error;
     }
   },
 
@@ -82,7 +92,7 @@ export const dbService = {
 
   async getOrders() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
-    const { data, error } = await supabase.from('orders').select('*');
+    const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
     if (error) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
     return data as Order[];
   },
@@ -107,7 +117,8 @@ export const dbService = {
     orders.push(order);
     setLocal(LOCAL_STORAGE_KEYS.ORDERS, orders);
     if (this.isConfigured()) {
-      await supabase.from('orders').upsert(order);
+      const { error } = await supabase.from('orders').upsert(order);
+      if (error) throw error;
     }
   },
 
