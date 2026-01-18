@@ -46,9 +46,7 @@ const App: React.FC = () => {
 
   // Load data from DB on mount and setup real-time subscriptions
   useEffect(() => {
-    let productSub: any = null;
-    let orderSub: any = null;
-    let customerSub: any = null;
+    let globalSub: any = null;
 
     const loadData = async () => {
       try {
@@ -112,19 +110,11 @@ const App: React.FC = () => {
                 });
             };
 
-            // Subscribe to Products - Sort by name to prevent jumping
-            productSub = dbService.subscribeToChanges('products', (payload) => {
-                handleRealtime(payload, setProducts, 'id', (a, b) => a.name.localeCompare(b.name));
-            });
-
-            // Subscribe to Orders - Sort by date descending
-            orderSub = dbService.subscribeToChanges('orders', (payload) => {
-                handleRealtime(payload, setOrders, 'id', (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-            });
-
-            // Subscribe to Customers - Sort by name
-            customerSub = dbService.subscribeToChanges('customers', (payload) => {
-                handleRealtime(payload, setCustomers, 'id', (a, b) => a.name.localeCompare(b.name));
+            // Use consolidated subscription
+            globalSub = dbService.subscribeToTables({
+                'products': (payload) => handleRealtime(payload, setProducts, 'id', (a, b) => a.name.localeCompare(b.name)),
+                'orders': (payload) => handleRealtime(payload, setOrders, 'id', (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+                'customers': (payload) => handleRealtime(payload, setCustomers, 'id', (a, b) => a.name.localeCompare(b.name))
             });
         }
 
@@ -138,9 +128,7 @@ const App: React.FC = () => {
     loadData();
 
     return () => {
-        if (productSub) dbService.unsubscribe(productSub);
-        if (orderSub) dbService.unsubscribe(orderSub);
-        if (customerSub) dbService.unsubscribe(customerSub);
+        if (globalSub) dbService.unsubscribe(globalSub);
     };
   }, []);
 

@@ -36,33 +36,35 @@ export const dbService = {
   },
 
   // --- Real-time Subscription ---
-  subscribeToChanges(
-    tableName: 'products' | 'orders' | 'customers' | 'settings',
-    callback: (payload: any) => void
+  // Consolidated subscription to prevent multiple channel connection errors
+  subscribeToTables(
+    handlers: Record<string, (payload: any) => void>
   ): RealtimeChannel | null {
     if (!this.isConfigured()) return null;
 
-    console.log(`Attempting to subscribe to ${tableName}...`);
+    const channel = supabase.channel('main_db_changes');
 
-    // Create a channel for the specific table
-    return supabase
-      .channel(`public:${tableName}`)
+    channel
       .on(
         'postgres_changes',
-        { event: '*', schema: 'public', table: tableName },
-        (payload) => {
-            console.log(`Realtime update received for ${tableName}:`, payload.eventType);
-            // Pass the raw payload to the callback
-            callback(payload);
+        { event: '*', schema: 'public' },
+        (payload: any) => {
+            const table = payload.table;
+            if (handlers[table]) {
+                // console.log(`Realtime update for ${table}`);
+                handlers[table](payload);
+            }
         }
       )
       .subscribe((status) => {
         if (status === 'SUBSCRIBED') {
-            console.log(`Successfully connected to ${tableName} stream.`);
+            console.log('Connected to real-time changes.');
         } else if (status === 'CHANNEL_ERROR') {
-            console.error(`Failed to connect to ${tableName} stream.`);
+            console.warn('Real-time connection failed. This usually means "Realtime" replication is not enabled for your tables in the Supabase Dashboard, or your API key lacks permissions. The app will continue in offline/manual mode.');
         }
       });
+      
+    return channel;
   },
 
   unsubscribe(channel: RealtimeChannel) {
@@ -247,13 +249,11 @@ export const dbService = {
   async getShopDetails() {
     if (!this.isConfigured()) {
        const settings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS);
-       // Handle case where settings might be undefined in local storage
        return settings?.main_details || null;
     }
 
     const { data, error } = await supabase.from('settings').select('*').eq('id', 'main_details').single();
     if (error) {
-       // PGRST116 is "Row not found"
        if (error.code !== 'PGRST116') console.error("Error fetching settings:", error.message || error);
     }
     return data as ShopDetails | null;
@@ -263,7 +263,6 @@ export const dbService = {
     const payload = { ...details, id: 'main_details' };
     
     if (!this.isConfigured()) {
-       // Ensure object exists
        const settings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS) || {};
        settings.main_details = payload;
        setLocal(LOCAL_STORAGE_KEYS.SETTINGS, settings);
