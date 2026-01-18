@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       rollupOptions: {
-        // Bundling enabled for all dependencies
+        // Ensure standard bundling
       }
     }
   };
