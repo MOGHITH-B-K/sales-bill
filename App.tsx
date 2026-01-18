@@ -254,6 +254,7 @@ const App: React.FC = () => {
                 onUpdateProduct={handleUpdateProduct}
                 onDeleteProduct={handleDeleteProduct}
                 onClearProducts={handleClearProducts}
+                onNavigateToPos={() => setView('pos')}
             />
           )}
           {view === 'history' && (
