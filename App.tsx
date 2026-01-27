@@ -120,17 +120,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleRestoreStock = async (productId: string, qty: number) => {
-    const product = products.find(p => p.id === productId);
-    if (product) {
-      const updated = { ...product, stock: (product.stock || 0) + qty };
-      await dbService.saveProduct(updated);
-      setProducts(await dbService.getProducts());
-      return true;
-    }
-    return false;
-  };
-
   const handleEditOrder = async (order: Order) => {
       const orderToDelete = orders.find(o => o.id === order.id);
       if (orderToDelete) {
@@ -216,7 +205,7 @@ const App: React.FC = () => {
         <div className="h-full overflow-y-auto scroll-smooth">
           {view === 'pos' && <POS products={products} customers={customers} cart={cart} setCart={setCart} onSaveOrder={handleSaveOrder} onSaveCustomer={handleAddCustomer} shopDetails={shopDetails} onManageStock={() => setView('inventory')} onViewHistory={() => setView('history')} initialCustomer={editingCustomer} onAddProduct={handleAddProduct} />}
           {view === 'inventory' && <Inventory products={products} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} onDeleteProduct={handleDeleteProduct} onClearProducts={handleClearProducts} onNavigateToPos={() => setView('pos')} defaultTaxRate={shopDetails.defaultTaxRate} />}
-          {view === 'history' && <History orders={orders} onDeleteOrder={async (id) => { const o = orders.find(x => x.id === id); if (o) { for (const item of o.items) { const p = products.find(y => y.id === item.id); if (p) await dbService.saveProduct({...p, stock: p.stock + item.qty}); } } await dbService.deleteOrder(id); setOrders(await dbService.getOrders()); setProducts(await dbService.getProducts()); }} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onEditOrder={handleEditOrder} shopDetails={shopDetails} onRestoreStock={handleRestoreStock} />}
+          {view === 'history' && <History orders={orders} onDeleteOrder={async (id) => { const o = orders.find(x => x.id === id); if (o) { for (const item of o.items) { const p = products.find(y => y.id === item.id); if (p) await dbService.saveProduct({...p, stock: p.stock + item.qty}); } } await dbService.deleteOrder(id); setOrders(await dbService.getOrders()); setProducts(await dbService.getProducts()); }} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onEditOrder={handleEditOrder} shopDetails={shopDetails} />}
           {view === 'analysis' && <DailyAnalysis orders={orders} shopDetails={shopDetails} />}
           {view === 'customers' && <Customers customers={customers} onAddCustomer={handleAddCustomer} onUpdateCustomer={handleUpdateCustomer} onDeleteCustomer={handleDeleteCustomer} />}
           {view === 'settings' && <ShopSettings shopDetails={shopDetails} onSave={handleSaveSettings} orders={orders} customers={customers} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onClearProducts={handleClearProducts} onClearCustomers={async () => { await dbService.clearCustomers(); setCustomers([]); }} onFactoryReset={handleFactoryReset} onAddProduct={handleAddProduct} />}
