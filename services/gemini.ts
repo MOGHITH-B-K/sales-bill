@@ -1,16 +1,10 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize client with environment variable, following guidelines
-// Note: GoogleGenAI constructor must use a named parameter object: { apiKey: string }
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+// Initialize client with environment variable strictly following guidelines
+const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const generateProductDetails = async (productName: string) => {
-  if (!process.env.API_KEY) {
-    console.error("API Key is missing. Please check your environment variables.");
-    return null;
-  }
-
   try {
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
@@ -29,14 +23,12 @@ export const generateProductDetails = async (productName: string) => {
       }
     });
 
-    // Access .text property directly, do not call as a function
+    // Access .text property directly as a property, not a method.
     const text = response.text;
     if (!text) return null;
 
-    // Clean potential markdown code blocks if the model returns them despite responseMimeType
-    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
-    return JSON.parse(jsonStr);
+    // Direct parsing of the response text as it is already requested in JSON format
+    return JSON.parse(text.trim());
   } catch (error) {
     console.error("Gemini generation error:", error);
     return null;

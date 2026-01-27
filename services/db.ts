@@ -73,7 +73,9 @@ export const dbService = {
         description: product.description,
         image: product.image,
         taxRate: product.taxRate,
-        minStockLevel: product.minStockLevel
+        minStockLevel: product.minStockLevel,
+        productType: product.productType || 'sale',
+        rentalDuration: product.rentalDuration || ''
       };
 
       const { error } = await supabase.from('products').upsert(payload);
@@ -124,8 +126,11 @@ export const dbService = {
 
   async saveOrder(order: Order) {
     const orders = getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
-    orders.push(order);
+    const index = orders.findIndex(o => o.id === order.id);
+    if (index >= 0) orders[index] = order;
+    else orders.push(order);
     setLocal(LOCAL_STORAGE_KEYS.ORDERS, orders);
+
     if (this.isConfigured()) {
       const payload = {
         id: order.id,

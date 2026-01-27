@@ -22,6 +22,7 @@ export interface Customer {
 
 export interface CartItem extends Product {
   qty: number;
+  returned?: boolean; // Track if a rental item has been returned to stock
 }
 
 export interface Order {
