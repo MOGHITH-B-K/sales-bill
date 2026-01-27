@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, CheckCircle2, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, CheckCircle2, Cloud, CloudOff, Tag, Repeat } from 'lucide-react';
 import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
 import { dbService } from '../services/db';
@@ -40,7 +40,8 @@ export const Inventory: React.FC<InventoryProps> = ({
     description: '',
     image: '',
     taxRate: defaultTaxRate,
-    minStockLevel: 5
+    minStockLevel: 5,
+    productType: 'sale'
   });
 
   const [editId, setEditId] = useState<string | null>(null);
@@ -57,7 +58,8 @@ export const Inventory: React.FC<InventoryProps> = ({
       description: '', 
       image: '', 
       taxRate: defaultTaxRate, 
-      minStockLevel: 5
+      minStockLevel: 5,
+      productType: 'sale'
     });
     setEditId(null);
     setIsModalOpen(false);
@@ -107,7 +109,7 @@ export const Inventory: React.FC<InventoryProps> = ({
 
     } catch (err: any) {
       console.error("Save error:", err);
-      alert(err.message || "Failed to save product. Please check your database settings.");
+      alert(err.message || "Failed to save product.");
     } finally {
       setIsSaving(false);
     }
@@ -120,28 +122,9 @@ export const Inventory: React.FC<InventoryProps> = ({
     setIsModalOpen(true);
   };
 
-  const handleAIGenerate = async () => {
-    if (!currentProduct.name) return;
-    setIsLoadingAI(true);
-    const data = await generateProductDetails(currentProduct.name);
-    if (data) {
-      setCurrentProduct(prev => ({
-        ...prev,
-        description: data.description || prev.description,
-        price: data.suggestedPrice || prev.price,
-        category: data.category || prev.category
-      }));
-    }
-    setIsLoadingAI(false);
-  };
-
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 2 * 1024 * 1024) {
-        alert("Image too large. Please select an image under 2MB.");
-        return;
-      }
       const reader = new FileReader();
       reader.onloadend = () => {
         if (typeof reader.result === 'string') {
@@ -157,7 +140,7 @@ export const Inventory: React.FC<InventoryProps> = ({
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h2 className="text-3xl font-bold text-slate-800">Stock Management</h2>
+            <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Inventory Management</h2>
             {dbConnected ? (
                 <div className="flex items-center gap-1.5 px-2 py-1 bg-green-50 text-green-600 rounded-full text-[10px] font-bold border border-green-100">
                     <Cloud size={12} /> CLOUD SYNC ACTIVE
@@ -168,7 +151,7 @@ export const Inventory: React.FC<InventoryProps> = ({
                 </div>
             )}
           </div>
-          <p className="text-slate-500 mt-1">Add product details and set inventory thresholds.</p>
+          <p className="text-slate-500 mt-1">Manage standard sales and temporary rentals.</p>
         </div>
         <div className="flex flex-wrap gap-3">
             <button 
@@ -190,17 +173,18 @@ export const Inventory: React.FC<InventoryProps> = ({
         <table className="w-full text-left">
           <thead className="bg-slate-50 border-b border-slate-200">
             <tr>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product Info</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Type</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Category</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Stock</th>
-              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Price</th>
+              <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">In Stock</th>
               <th className="px-6 py-4 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-100">
             {products.length === 0 ? (
-                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">Database is empty. Add a product to get started.</td></tr>
+                <tr><td colSpan={5} className="px-6 py-12 text-center text-slate-400 italic">Inventory is empty. Add items to start billing.</td></tr>
             ) : products.map(product => {
+              const isRental = product.productType === 'rental';
               const threshold = product.minStockLevel || 5;
               const isLow = product.stock > 0 && product.stock <= threshold;
               const isOut = product.stock <= 0;
@@ -208,39 +192,39 @@ export const Inventory: React.FC<InventoryProps> = ({
               return (
                 <tr key={product.id} className={`transition-colors ${isOut ? 'bg-red-50/20' : isLow ? 'bg-orange-50/20' : 'hover:bg-slate-50'}`}>
                   <td className="px-6 py-4 flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200">
-                      {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <ImageIcon size={20} className="text-slate-400" />}
+                    <div className="w-10 h-10 rounded-lg bg-slate-100 flex items-center justify-center overflow-hidden border border-slate-200 shrink-0">
+                      {product.image ? <img src={product.image} className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-slate-400" />}
                     </div>
-                    <div className="flex flex-col">
-                        <span className="font-bold text-slate-800">{product.name}</span>
-                        <span className="text-[10px] text-slate-400">{product.description || 'Verified in Cloud Database'}</span>
+                    <div className="flex flex-col min-w-0">
+                        <span className="font-bold text-slate-800 truncate">{product.name}</span>
+                        <span className="text-[10px] text-slate-400 font-mono">ID: {product.id}</span>
                     </div>
                   </td>
                   <td className="px-6 py-4">
-                    <span className="px-2.5 py-1 bg-blue-50 text-blue-700 text-[10px] uppercase font-black rounded-full border border-blue-100">
-                      {product.category}
-                    </span>
+                    {isRental ? (
+                        <span className="flex items-center gap-1.5 text-[9px] font-black uppercase text-orange-600 bg-orange-50 px-2 py-1 rounded-md border border-orange-100">
+                            <Repeat size={10} /> Rental Item
+                        </span>
+                    ) : (
+                        <span className="flex items-center gap-1.5 text-[9px] font-black uppercase text-blue-600 bg-blue-50 px-2 py-1 rounded-md border border-blue-100">
+                            <Tag size={10} /> Normal Sale
+                        </span>
+                    )}
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-[10px] font-bold text-slate-500">{product.category}</span>
                   </td>
                   <td className="px-6 py-4">
                     {isOut ? (
-                      <div className="flex items-center gap-1.5 text-red-600 font-black text-xs bg-red-100 px-3 py-1 rounded-lg w-fit">
-                        <AlertCircle size={14} /> OUT: {product.stock}
-                      </div>
-                    ) : isLow ? (
-                      <div className="flex items-center gap-1.5 text-orange-600 font-black text-xs bg-orange-100 px-3 py-1 rounded-lg w-fit">
-                        <AlertTriangle size={14} /> LOW: {product.stock}
-                      </div>
+                      <span className="text-red-600 font-black text-xs">OUT OF STOCK</span>
                     ) : (
-                      <div className="text-green-600 font-bold text-sm">
-                        {product.stock} available
-                      </div>
+                      <span className={`text-sm font-bold ${isLow ? 'text-orange-600' : 'text-slate-800'}`}>{product.stock} units</span>
                     )}
                   </td>
-                  <td className="px-6 py-4 font-black text-slate-800">₹{product.price.toFixed(2)}</td>
                   <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <button onClick={() => handleEdit(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit2 size={16} /></button>
-                      <button onClick={() => onDeleteProduct(product.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 size={16} /></button>
+                    <div className="flex justify-end gap-1.5">
+                      <button onClick={() => handleEdit(product)} className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-all"><Edit2 size={16} /></button>
+                      <button onClick={() => onDeleteProduct(product.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"><Trash2 size={16} /></button>
                     </div>
                   </td>
                 </tr>
@@ -252,142 +236,63 @@ export const Inventory: React.FC<InventoryProps> = ({
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-md p-4">
-          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden max-h-[90vh] flex flex-col animate-in zoom-in-95 duration-300">
+          <div className="bg-white rounded-[2rem] w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95">
             <div className="flex justify-between items-center p-8 border-b border-slate-100 bg-slate-50/50">
-              <div>
-                <h3 className="text-2xl font-black text-slate-800 tracking-tight">{editId ? 'Edit Product' : 'Product Details'}</h3>
-                <p className="text-xs text-slate-500 font-medium">Synced to cloud for walk-in billing.</p>
-              </div>
+              <h3 className="text-2xl font-black text-slate-800">{editId ? 'Modify Product' : 'Add New Product'}</h3>
               <button onClick={resetForm} className="text-slate-400 hover:text-slate-900 p-2 hover:bg-slate-200 rounded-full"><X size={24} /></button>
             </div>
             
-            <form className="p-8 space-y-6 overflow-y-auto">
-              <div className="grid grid-cols-2 gap-6">
-                {/* Image Upload Area */}
-                <div className="col-span-2">
-                   <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Product Image</label>
-                   <div className="flex items-center gap-4">
-                      <div className="w-24 h-24 bg-slate-50 rounded-2xl border-2 border-dashed border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                         {currentProduct.image ? (
-                           <img src={currentProduct.image} className="w-full h-full object-cover" />
-                         ) : (
-                           <ImageIcon size={32} className="text-slate-200" />
-                         )}
-                      </div>
-                      <div className="flex-1">
-                        <label className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-600 cursor-pointer hover:bg-slate-50 transition-colors w-fit">
-                          <Upload size={16} /> {currentProduct.image ? 'Change Photo' : 'Upload Photo'}
-                          <input type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
-                        </label>
-                        <p className="text-[10px] text-slate-400 mt-2">Recommended: 400x400px, Max 2MB.</p>
-                      </div>
-                   </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Product Name</label>
-                  <div className="flex gap-3">
-                    <input 
-                      type="text" 
-                      required
-                      value={currentProduct.name} 
-                      onChange={(e) => setCurrentProduct({...currentProduct, name: e.target.value})} 
-                      className="flex-1 px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 font-bold outline-none" 
-                      placeholder="e.g. Classic Brownie" 
-                    />
-                    <button 
-                      type="button" 
-                      onClick={handleAIGenerate} 
-                      disabled={isLoadingAI || !currentProduct.name} 
-                      className="px-5 py-3.5 bg-blue-600 text-white rounded-2xl shadow-xl shadow-blue-200 disabled:opacity-50 hover:scale-105 transition-all"
-                    >
-                      {isLoadingAI ? <Loader2 className="animate-spin" size={20} /> : <Sparkles size={20} />}
-                    </button>
-                  </div>
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Category</label>
-                  {isCustomCategory ? (
-                    <div className="flex gap-3">
-                      <input 
-                        type="text" 
-                        autoFocus
-                        value={currentProduct.category} 
-                        onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})} 
-                        className="flex-1 px-5 py-3.5 border-2 border-blue-200 rounded-2xl focus:ring-4 focus:ring-blue-50 outline-none bg-blue-50/20 font-bold" 
-                        placeholder="Type category..." 
-                      />
-                      <button 
-                        type="button" 
-                        onClick={() => { setIsCustomCategory(false); setCurrentProduct(prev => ({...prev, category: dropdownCategories[0]})); }} 
-                        className="px-4 py-3 text-xs font-bold text-slate-500 bg-slate-100 hover:bg-slate-200 rounded-2xl border border-slate-200"
-                      >
-                        Back
-                      </button>
-                    </div>
-                  ) : (
-                    <select 
-                      value={currentProduct.category} 
-                      onChange={(e) => {
-                        if (e.target.value === 'NEW_CATEGORY') {
-                          setIsCustomCategory(true);
-                          setCurrentProduct(prev => ({...prev, category: ''}));
-                        } else {
-                          setCurrentProduct({...currentProduct, category: e.target.value});
-                        }
-                      }} 
-                      className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl focus:border-blue-500 outline-none bg-white font-bold"
-                    >
-                      {dropdownCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
-                      <option value="NEW_CATEGORY">+ NEW CATEGORY</option>
-                    </select>
-                  )}
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Unit Price (₹)</label>
-                  <input type="number" step="0.01" value={currentProduct.price} onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})} className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-500" />
-                </div>
-                 <div>
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Total Stock</label>
-                  <input type="number" value={currentProduct.stock} onChange={(e) => setCurrentProduct({...currentProduct, stock: parseInt(e.target.value)})} className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-500" />
-                </div>
-                
-                <div className="col-span-2">
-                  <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-2">Min Stock Alert Level</label>
-                  <input 
-                    type="number" 
-                    value={currentProduct.minStockLevel} 
-                    onChange={(e) => setCurrentProduct({...currentProduct, minStockLevel: parseInt(e.target.value)})} 
-                    className="w-full px-5 py-3.5 border-2 border-slate-100 rounded-2xl font-bold outline-none focus:border-blue-500" 
-                    placeholder="e.g. 5"
-                  />
-                  <p className="text-[10px] text-slate-400 mt-2">System will alert you when stock drops below this value.</p>
-                </div>
+            <form onSubmit={(e) => handleSubmit(e, false)} className="p-8 space-y-6">
+              {/* Type Switcher */}
+              <div className="grid grid-cols-2 gap-4 bg-slate-100 p-1.5 rounded-2xl">
+                  <button 
+                    type="button" 
+                    onClick={() => setCurrentProduct({...currentProduct, productType: 'sale'})}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase transition-all ${currentProduct.productType === 'sale' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+                  >
+                    <Tag size={16} /> Standard Sale
+                  </button>
+                  <button 
+                    type="button" 
+                    onClick={() => setCurrentProduct({...currentProduct, productType: 'rental'})}
+                    className={`flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black uppercase transition-all ${currentProduct.productType === 'rental' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-500 hover:bg-white/50'}`}
+                  >
+                    <Repeat size={16} /> Rental Asset
+                  </button>
               </div>
 
-              <div className="pt-8 flex flex-col gap-4">
+              <div className="space-y-4">
+                  <div>
+                    <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Product Name</label>
+                    <input type="text" required value={currentProduct.name} onChange={(e) => setCurrentProduct({...currentProduct, name: e.target.value})} className="w-full px-5 py-3.5 border border-slate-200 rounded-2xl focus:border-blue-500 outline-none font-bold" />
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Price (₹)</label>
+                        <input type="number" step="0.01" value={currentProduct.price} onChange={(e) => setCurrentProduct({...currentProduct, price: parseFloat(e.target.value)})} className="w-full px-5 py-3.5 border border-slate-200 rounded-2xl focus:border-blue-500 outline-none font-bold" />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Current Stock</label>
+                        <input type="number" value={currentProduct.stock} onChange={(e) => setCurrentProduct({...currentProduct, stock: parseInt(e.target.value)})} className="w-full px-5 py-3.5 border border-slate-200 rounded-2xl focus:border-blue-500 outline-none font-bold" />
+                      </div>
+                  </div>
+
+                  <div>
+                      <label className="block text-[11px] font-black text-slate-400 uppercase tracking-widest mb-1.5">Category</label>
+                      <select value={currentProduct.category} onChange={(e) => setCurrentProduct({...currentProduct, category: e.target.value})} className="w-full px-5 py-3.5 border border-slate-200 rounded-2xl focus:border-blue-500 outline-none font-bold bg-white">
+                        {dropdownCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                      </select>
+                  </div>
+              </div>
+
+              <div className="pt-4">
                 <button 
-                  type="button" 
-                  disabled={isSaving || saveSuccess}
-                  onClick={(e) => handleSubmit(e, true)}
-                  className={`w-full py-5 rounded-[1.25rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 transition-all ${
-                    saveSuccess 
-                      ? 'bg-green-500 text-white' 
-                      : 'bg-slate-900 text-white hover:bg-blue-600 shadow-2xl'
-                  } disabled:opacity-70`}
+                  type="submit" 
+                  disabled={isSaving}
+                  className="w-full py-5 bg-slate-900 text-white rounded-[1.25rem] font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:bg-blue-600 transition-all disabled:opacity-50 shadow-xl"
                 >
-                  {isSaving ? <Loader2 className="animate-spin" size={24} /> : saveSuccess ? <CheckCircle2 size={24} /> : <Store size={24} />} 
-                  {saveSuccess ? 'SUCCESSFULLY SYNCED' : 'Save & GO TO BILLING'}
-                </button>
-                <button 
-                  type="button"
-                  disabled={isSaving || saveSuccess}
-                  onClick={(e) => handleSubmit(e, false)}
-                  className="w-full py-4 bg-slate-100 text-slate-600 font-black uppercase tracking-widest text-xs rounded-[1.25rem] hover:bg-slate-200"
-                >
-                  Save Only
+                  {isSaving ? <Loader2 className="animate-spin" size={24} /> : editId ? 'Update Item' : 'Create Item'}
                 </button>
               </div>
             </form>

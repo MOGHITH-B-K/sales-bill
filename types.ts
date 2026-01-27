@@ -43,6 +43,7 @@ export interface ShopDetails {
   phone: string;
   email: string;
   footerMessage: string;
+  poweredByText?: string; // Customizable branding credit
   logo?: string; // Base64 string
   paymentQrCode?: string; // Base64 string
   taxEnabled: boolean;

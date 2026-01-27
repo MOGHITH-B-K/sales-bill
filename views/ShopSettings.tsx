@@ -1,7 +1,7 @@
 
-import React, { useState } from 'react';
-import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle, Cloud, ExternalLink, Code } from 'lucide-react';
-import { ShopDetails, Order, Customer } from '../types';
+import React, { useState, useRef } from 'react';
+import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle, Cloud, ExternalLink, Code, FileUp, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { ShopDetails, Order, Customer, Product } from '../types';
 import { dbService } from '../services/db';
 
 interface ShopSettingsProps {
@@ -13,6 +13,7 @@ interface ShopSettingsProps {
   onClearProducts: () => Promise<void>;
   onClearCustomers: () => Promise<void>;
   onFactoryReset: () => Promise<void>;
+  onAddProduct: (product: Product) => Promise<void>;
 }
 
 export const ShopSettings: React.FC<ShopSettingsProps> = ({ 
@@ -23,11 +24,15 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
     onClearOrders,
     onClearProducts,
     onClearCustomers,
-    onFactoryReset
+    onFactoryReset,
+    onAddProduct
 }) => {
   const [formData, setFormData] = useState<ShopDetails>(shopDetails);
   const [isSaved, setIsSaved] = useState(false);
   const [showSchema, setShowSchema] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ success: boolean; count: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value, type } = e.target;
@@ -64,6 +69,53 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
     });
     setIsSaved(true);
     setTimeout(() => setIsSaved(false), 3000);
+  };
+
+  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    setImportStatus(null);
+    const reader = new FileReader();
+    
+    reader.onload = async (event) => {
+      const text = event.target?.result as string;
+      const lines = text.split('\n');
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      let importedCount = 0;
+      
+      for (let i = 1; i < lines.length; i++) {
+        if (!lines[i].trim()) continue;
+        const values = lines[i].split(',').map(v => v.trim());
+        const product: Partial<Product> = {
+          id: Date.now().toString() + i,
+          taxRate: shopDetails.defaultTaxRate,
+          minStockLevel: 5
+        };
+
+        headers.forEach((header, index) => {
+          if (header === 'name') product.name = values[index];
+          if (header === 'price') product.price = parseFloat(values[index]) || 0;
+          if (header === 'stock') product.stock = parseInt(values[index]) || 0;
+          if (header === 'category') product.category = values[index] || 'General';
+          if (header === 'description') product.description = values[index];
+        });
+
+        if (product.name && product.price !== undefined) {
+          await onAddProduct(product as Product);
+          importedCount++;
+        }
+      }
+
+      setImportStatus({ success: true, count: importedCount });
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      setTimeout(() => setImportStatus(null), 5000);
+    };
+
+    reader.readAsText(file);
   };
 
   const exportOrdersCSV = () => {
@@ -113,8 +165,8 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
   return (
     <div className="p-6 max-w-4xl mx-auto space-y-8">
       <div className="mb-8">
-        <h2 className="text-3xl font-bold text-slate-800">Shop Settings</h2>
-        <p className="text-slate-500 mt-1">Manage your shop brand, tax, and database connectivity.</p>
+        <h2 className="text-3xl font-bold text-slate-800 tracking-tight">Shop Settings</h2>
+        <p className="text-slate-500 mt-1">Manage your shop brand, tax, and inventory sync.</p>
       </div>
 
       <div className="space-y-8">
@@ -126,81 +178,35 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
                       <Cloud size={24} />
                   </div>
                   <div>
-                    <h3 className="font-semibold text-lg text-slate-800">Cloud Database Sync</h3>
-                    <p className="text-xs text-slate-500">{isDbConfigured ? 'Connected to Supabase' : 'Local Mode: Configure Supabase to sync across devices'}</p>
+                    <h3 className="font-semibold text-lg text-slate-800">Cloud Sync Status</h3>
+                    <p className="text-xs text-slate-500">{isDbConfigured ? 'Connected to Supabase Cloud' : 'Local Mode: Data stays in this browser only'}</p>
                   </div>
                 </div>
                 {isDbConfigured && <span className="px-3 py-1 bg-green-500 text-white text-[10px] font-bold rounded-full uppercase tracking-widest">Live</span>}
             </div>
             <div className="p-8 space-y-4">
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200">
-                    <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-2"><Code size={18} className="text-blue-600" /> Connection Guide</h4>
+                    <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-2"><Code size={18} className="text-blue-600" /> API Connection</h4>
                     <p className="text-sm text-slate-600 mb-4 leading-relaxed">
-                      To enable cloud synchronization, you must provide your Supabase URL and Key in the project environment. 
-                      You also need to set up your database tables using our schema.
+                      To enable real-time sync across devices, provide your Supabase URL and Key in the environment. 
                     </p>
                     <div className="flex flex-wrap gap-3">
                       <button 
                         onClick={() => setShowSchema(!showSchema)}
                         className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all"
                       >
-                        <ExternalLink size={16} /> {showSchema ? 'Hide SQL Schema' : 'View SQL Schema'}
+                        <ExternalLink size={16} /> {showSchema ? 'Hide Setup' : 'View SQL Setup'}
                       </button>
-                      <a 
-                        href="https://supabase.com/dashboard" 
-                        target="_blank" 
-                        className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700 transition-all"
-                      >
-                        Supabase Dashboard
-                      </a>
                     </div>
                     
                     {showSchema && (
                       <div className="mt-6">
-                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">SQL Setup Script</label>
+                        <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Supabase SQL Schema</label>
                         <div className="bg-slate-900 rounded-xl p-4 overflow-x-auto">
                           <pre className="text-[11px] text-green-400 font-mono">
-{`-- Run this in your Supabase SQL Editor:
-create table products (
-  id text primary key,
-  name text not null,
-  price numeric not null,
-  stock numeric default 0,
-  category text not null,
-  description text,
-  image text,
-  "taxRate" numeric default 0,
-  "minStockLevel" numeric default 5
-);
-
-create table orders (
-  id text primary key,
-  date timestamp with time zone not null,
-  items jsonb not null,
-  total numeric not null,
-  "taxTotal" numeric not null,
-  customer jsonb
-);
-
-create table customers (
-  id text primary key,
-  name text not null,
-  phone text,
-  place text
-);
-
-create table settings (
-  id text primary key,
-  name text,
-  address text,
-  phone text,
-  email text,
-  "footerMessage" text,
-  logo text,
-  "paymentQrCode" text,
-  "taxEnabled" boolean default true,
-  "defaultTaxRate" numeric default 5
-);`}
+{`create table products (id text primary key, name text not null, price numeric not null, stock numeric default 0, category text not null, description text, image text);
+create table orders (id text primary key, date timestamp with time zone not null, items jsonb not null, total numeric not null, "taxTotal" numeric not null, customer jsonb);
+create table settings (id text primary key, name text, address text, phone text, email text, "footerMessage" text, "poweredByText" text, logo text, "paymentQrCode" text, "taxEnabled" boolean default true, "defaultTaxRate" numeric default 5);`}
                           </pre>
                         </div>
                       </div>
@@ -210,52 +216,13 @@ create table settings (
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Tax Details Section */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
-              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-                  <div className="p-2 bg-purple-100 text-purple-600 rounded-lg">
-                      <Calculator size={24} />
-                  </div>
-                  <h3 className="font-semibold text-lg text-slate-800">Tax Configuration</h3>
-              </div>
-              <div className="p-8 grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
-                  <div className="flex items-center gap-3">
-                      <label className="relative inline-flex items-center cursor-pointer">
-                          <input 
-                              type="checkbox" 
-                              name="taxEnabled"
-                              checked={formData.taxEnabled}
-                              onChange={handleChange}
-                              className="sr-only peer"
-                          />
-                          <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                          <span className="ml-3 text-sm font-medium text-slate-700">Calculate Tax on Receipts</span>
-                      </label>
-                  </div>
-                  <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Default GST / Tax (%)</label>
-                      <input 
-                          type="number" 
-                          name="defaultTaxRate"
-                          min="0"
-                          step="0.1"
-                          value={formData.defaultTaxRate}
-                          onChange={handleChange}
-                          disabled={!formData.taxEnabled}
-                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-slate-100 disabled:text-slate-400"
-                          placeholder="e.g. 5"
-                      />
-                  </div>
-              </div>
-          </div>
-
-          {/* Shop Details Section */}
+          {/* Branding & Contact */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
               <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
                   <Store size={24} />
               </div>
-              <h3 className="font-semibold text-lg text-slate-800">Branding & Contact</h3>
+              <h3 className="font-semibold text-lg text-slate-800">Branding & Credits</h3>
               </div>
 
               <div className="p-8 space-y-8">
@@ -263,167 +230,148 @@ create table settings (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {/* Logo Upload */}
                   <div className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-slate-700">Walk-in Shop Logo</span>
-                      <div className="relative w-full h-48 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
+                      <span className="text-sm font-medium text-slate-700">Receipt Logo</span>
+                      <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
                           {formData.logo ? (
-                              <>
                               <img src={formData.logo} alt="Shop Logo" className="w-full h-full object-contain p-2" />
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <p className="text-white text-sm font-medium">Click to Update</p>
-                              </div>
-                              </>
                           ) : (
-                              <div className="flex flex-col items-center text-slate-400">
-                              <ImageIcon size={32} className="mb-2 opacity-50" />
-                              <span className="text-sm">Upload Logo</span>
+                              <div className="flex flex-col items-center text-slate-400 text-center p-4">
+                                <ImageIcon size={24} className="mb-2 opacity-50" />
+                                <span className="text-xs font-bold uppercase tracking-wider">Upload Shop Logo</span>
                               </div>
                           )}
-                          <input 
-                              type="file" 
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'logo')}
-                              className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
+                          <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
                       </div>
                       {formData.logo && (
-                          <button type="button" onClick={() => removeImage('logo')} className="text-xs text-red-500 hover:text-red-700 font-medium self-center">Remove</button>
+                          <button type="button" onClick={() => removeImage('logo')} className="text-[10px] text-red-500 font-bold uppercase self-center mt-1">Remove</button>
                       )}
                   </div>
 
-                  {/* QR Code Upload */}
+                  {/* Powered By Text */}
                   <div className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-slate-700">UPI / Payment QR</span>
-                      <div className="relative w-full h-48 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
-                          {formData.paymentQrCode ? (
-                              <>
-                              <img src={formData.paymentQrCode} alt="Payment QR" className="w-full h-full object-contain p-2" />
-                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                  <p className="text-white text-sm font-medium">Click to Update</p>
-                              </div>
-                              </>
-                          ) : (
-                              <div className="flex flex-col items-center text-slate-400">
-                              <QrCode size={32} className="mb-2 opacity-50" />
-                              <span className="text-sm">Upload Payment QR</span>
-                              </div>
-                          )}
-                          <input 
-                              type="file" 
-                              accept="image/*"
-                              onChange={(e) => handleImageUpload(e, 'paymentQrCode')}
-                              className="absolute inset-0 opacity-0 cursor-pointer"
-                          />
+                      <span className="text-sm font-medium text-slate-700">Receipt Credit Line</span>
+                      <div className="space-y-4">
+                        <input 
+                            type="text" 
+                            name="poweredByText"
+                            value={formData.poweredByText}
+                            onChange={handleChange}
+                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
+                            placeholder="e.g. Powered by MyShop"
+                        />
+                        <p className="text-[10px] text-slate-400 leading-tight">
+                            This text appears at the very bottom of every printed receipt. Use it for branding or white-labeling.
+                        </p>
                       </div>
-                      {formData.paymentQrCode && (
-                          <button type="button" onClick={() => removeImage('paymentQrCode')} className="text-xs text-red-500 hover:text-red-700 font-medium self-center">Remove</button>
-                      )}
                   </div>
               </div>
 
               <div className="space-y-6">
                   <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Business Name</label>
-                      <input 
-                      type="text" 
-                      name="name"
-                      required
-                      value={formData.name}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      placeholder="e.g. Walk-in Cafe"
-                      />
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Business Name</label>
+                      <input type="text" name="name" required value={formData.name} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
                   </div>
 
                   <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Full Address</label>
-                      <textarea 
-                      name="address"
-                      rows={3}
-                      value={formData.address}
-                      onChange={handleChange}
-                      className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-                      placeholder="Line 1, Line 2, Zip"
-                      />
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Address & Header Info</label>
+                      <textarea name="address" rows={2} value={formData.address} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm font-medium" />
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Mobile / Phone</label>
-                      <input 
-                          type="text" 
-                          name="phone"
-                          value={formData.phone}
-                          onChange={handleChange}
-                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="+91..."
-                      />
-                      </div>
-                      <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-1">Receipt Email</label>
-                      <input 
-                          type="text" 
-                          name="email"
-                          value={formData.email}
-                          onChange={handleChange}
-                          className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                          placeholder="billing@shop.com"
-                      />
-                      </div>
+                  <div>
+                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Footer Message</label>
+                      <input type="text" name="footerMessage" value={formData.footerMessage} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" placeholder="Thank you message..." />
                   </div>
               </div>
 
-              <div className="pt-4 flex items-center justify-end gap-4">
-                  {isSaved && <span className="text-green-600 font-bold text-sm">Settings Synced!</span>}
-                  <button 
-                  type="submit" 
-                  className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-bold hover:bg-blue-600 shadow-lg transition-all"
-                  >
-                  <Save size={18} /> Update Settings
+              <div className="pt-4 flex items-center justify-end gap-4 border-t border-slate-100">
+                  {isSaved && <span className="text-green-600 font-bold text-sm flex items-center gap-1"><CheckCircle2 size={16}/> Saved</span>}
+                  <button type="submit" className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition-all shadow-xl">
+                    <Save size={18} /> Update Shop Data
                   </button>
               </div>
               </div>
           </div>
           
-          {/* Data Cleanup */}
+          {/* Data Management & CSV Import */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
                   <div className="p-2 bg-green-100 text-green-600 rounded-lg">
                       <Database size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg text-slate-800">Cleanup & Export</h3>
+                  <h3 className="font-semibold text-lg text-slate-800">Data Operations</h3>
               </div>
               <div className="p-8">
-                  <div className="flex flex-col space-y-6">
-                      <div>
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-3">Data Backup</h4>
-                          <div className="flex flex-wrap gap-4">
-                              <button 
-                                  type="button"
-                                  onClick={exportOrdersCSV}
-                                  className="flex items-center gap-2 px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl font-medium transition-colors border border-slate-200"
-                              >
-                                  <Download size={18} /> Export CSV
-                              </button>
-                          </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                      {/* CSV Import */}
+                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 relative overflow-hidden">
+                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                             <FileUp size={14} className="text-blue-600" /> Bulk Import Products
+                          </h4>
+                          <p className="text-xs text-slate-600 mb-6 leading-relaxed">
+                            Upload a CSV file to quickly add products. Ensure columns: <b>name, price, stock, category, description</b>.
+                          </p>
+                          
+                          <input 
+                            type="file" 
+                            ref={fileInputRef}
+                            accept=".csv" 
+                            onChange={handleCSVImport} 
+                            className="hidden" 
+                          />
+                          
+                          <button 
+                            type="button"
+                            disabled={isImporting}
+                            onClick={() => fileInputRef.current?.click()}
+                            className="w-full py-3 bg-white border border-slate-200 text-slate-800 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm flex items-center justify-center gap-2"
+                          >
+                             {isImporting ? <Loader2 className="animate-spin" size={16}/> : <Sparkles size={14} className="text-blue-500" />}
+                             {isImporting ? 'Processing CSV...' : 'Select CSV File'}
+                          </button>
+
+                          {importStatus && (
+                            <div className="mt-4 p-3 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
+                                <CheckCircle2 size={14} /> Successfully imported {importStatus.count} products!
+                            </div>
+                          )}
                       </div>
 
-                      <div className="border-t border-slate-100 my-2"></div>
-
-                      <div>
-                          <div className="flex items-center gap-2 text-red-600 mb-3">
-                              <AlertTriangle size={18} />
-                              <h4 className="text-[10px] font-black uppercase tracking-widest">Wipe Data</h4>
-                          </div>
-                          <div className="flex flex-wrap gap-4">
+                      {/* Clear & Factory Reset */}
+                      <div className="bg-red-50/30 p-6 rounded-2xl border border-red-100">
+                           <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
+                             <Trash2 size={14} /> Critical Actions
+                          </h4>
+                          <div className="space-y-3">
                               <button 
                                   type="button"
                                   onClick={() => handleReset('all')}
-                                  className="flex items-center gap-2 px-5 py-2.5 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 shadow-lg shadow-red-200"
+                                  className="w-full py-3 bg-red-600 text-white font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-red-700 shadow-lg shadow-red-100 transition-all"
                               >
                                   Factory Reset
                               </button>
+                              <button 
+                                  type="button"
+                                  onClick={() => handleReset('orders')}
+                                  className="w-full py-3 bg-white border border-red-100 text-red-600 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-red-50 transition-all"
+                              >
+                                  Wipe Order History
+                              </button>
                           </div>
                       </div>
+                  </div>
+
+                  <div className="mt-8 pt-8 border-t border-slate-100 flex justify-between items-center">
+                      <div className="flex items-center gap-2">
+                          <Download size={18} className="text-slate-400" />
+                          <span className="text-xs font-bold text-slate-500">Backup Current Sales Data</span>
+                      </div>
+                      <button 
+                          type="button"
+                          onClick={exportOrdersCSV}
+                          className="px-6 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors"
+                      >
+                          Export Orders (CSV)
+                      </button>
                   </div>
               </div>
           </div>

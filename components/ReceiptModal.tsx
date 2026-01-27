@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { X, Printer, Download, Loader2 } from 'lucide-react';
 import { Order, ShopDetails } from '../types';
@@ -278,7 +279,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                         </div>
                     )}
                     <p className="text-[10px] text-black font-mono">{shopDetails.footerMessage}</p>
-                    <p className="text-[8px] text-black pt-2 opacity-50">Powered by SmartPOS</p>
+                    <p className="text-[8px] text-black pt-2 opacity-50">{shopDetails.poweredByText || 'Powered by SmartPOS'}</p>
                 </div>
             </div>
         </div>
