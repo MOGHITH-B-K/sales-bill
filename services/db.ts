@@ -18,42 +18,56 @@ const getLocal = (key: string) => {
 };
 
 const setLocal = (key: string, data: any) => {
-  localStorage.setItem(key, JSON.stringify(data));
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (e) {
+    console.error("Local Storage Error:", e);
+  }
 };
 
 export const dbService = {
   
   isConfigured: () => {
-    const url = (supabase as any).supabaseUrl || "";
-    const key = (supabase as any).supabaseKey || "";
-    const isPlaceholder = url === 'https://placeholder.supabase.co' || !url || !key;
-    return !isPlaceholder;
+    // Safer check for valid supabase config
+    try {
+      const url = (supabase as any).supabaseUrl || "";
+      return url && !url.includes('placeholder.supabase.co');
+    } catch {
+      return false;
+    }
   },
 
   subscribeToTables(handlers: Record<string, (payload: any) => void>): RealtimeChannel | null {
     if (!this.isConfigured()) return null;
-    const channel = supabase.channel('main_db_changes');
-    channel
-      .on('postgres_changes', { event: '*', schema: 'public' }, (payload: any) => {
-            const table = payload.table;
-            if (handlers[table]) handlers[table](payload);
-        })
-      .subscribe();
-    return channel;
+    try {
+      const channel = supabase.channel('main_db_changes');
+      channel
+        .on('postgres_changes', { event: '*', schema: 'public' }, (payload: any) => {
+              const table = payload.table;
+              if (handlers[table]) handlers[table](payload);
+          })
+        .subscribe();
+      return channel;
+    } catch (e) {
+      console.error("Realtime subscription failed:", e);
+      return null;
+    }
   },
 
   unsubscribe(channel: RealtimeChannel) {
-    supabase.removeChannel(channel);
+    if (channel) supabase.removeChannel(channel);
   },
 
   async getProducts() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
-    const { data, error } = await supabase.from('products').select('*').order('name');
-    if (error) {
-      console.warn("Cloud fetch error:", error.message);
+    try {
+      const { data, error } = await supabase.from('products').select('*').order('name');
+      if (error) throw error;
+      return data as Product[];
+    } catch (error) {
+      console.warn("Cloud products fetch error, falling back to local:", error);
       return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     }
-    return data as Product[];
   },
 
   async saveProduct(product: Product) {
@@ -64,24 +78,25 @@ export const dbService = {
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products);
 
     if (this.isConfigured()) {
-      const payload = {
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        stock: product.stock,
-        category: product.category,
-        description: product.description,
-        image: product.image,
-        taxRate: product.taxRate,
-        minStockLevel: product.minStockLevel,
-        productType: product.productType || 'sale',
-        rentalDuration: product.rentalDuration || ''
-      };
+      try {
+        const payload = {
+          id: product.id,
+          name: product.name,
+          price: product.price,
+          stock: product.stock,
+          category: product.category,
+          description: product.description,
+          image: product.image,
+          taxRate: product.taxRate,
+          minStockLevel: product.minStockLevel,
+          productType: product.productType || 'sale',
+          rentalDuration: product.rentalDuration || ''
+        };
 
-      const { error } = await supabase.from('products').upsert(payload);
-      if (error) {
-        console.error("Cloud save failed:", error.message);
-        throw new Error(`Database Error: ${error.message}`);
+        const { error } = await supabase.from('products').upsert(payload);
+        if (error) throw error;
+      } catch (error) {
+        console.error("Cloud product save failed:", error);
       }
     }
   },
@@ -90,8 +105,7 @@ export const dbService = {
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products.filter(p => p.id !== id));
     if (this.isConfigured()) {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (error) throw error;
+      await supabase.from('products').delete().eq('id', id);
     }
   },
 
@@ -104,9 +118,14 @@ export const dbService = {
 
   async getOrders() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
-    const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
-    if (error) return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
-    return data as Order[];
+    try {
+      const { data, error } = await supabase.from('orders').select('*').order('date', { ascending: false });
+      if (error) throw error;
+      return data as Order[];
+    } catch (error) {
+      console.warn("Cloud orders fetch error, falling back to local:", error);
+      return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
+    }
   },
 
   async getNextOrderId() {
@@ -115,13 +134,19 @@ export const dbService = {
       const numId = parseInt(order.id, 10);
       return !isNaN(numId) && numId > max ? numId : max;
     }, 0);
+    
     if (!this.isConfigured()) return (maxLocal + 1).toString();
-    const { data } = await supabase.from('orders').select('id');
-    const maxCloud = (data || []).reduce((max, item: any) => {
-      const numId = parseInt(item.id, 10);
-      return !isNaN(numId) && numId > max ? numId : max;
-    }, 0);
-    return (Math.max(maxLocal, maxCloud) + 1).toString();
+    
+    try {
+      const { data } = await supabase.from('orders').select('id');
+      const maxCloud = (data || []).reduce((max, item: any) => {
+        const numId = parseInt(item.id, 10);
+        return !isNaN(numId) && numId > max ? numId : max;
+      }, 0);
+      return (Math.max(maxLocal, maxCloud) + 1).toString();
+    } catch {
+      return (maxLocal + 1).toString();
+    }
   },
 
   async saveOrder(order: Order) {
@@ -132,16 +157,12 @@ export const dbService = {
     setLocal(LOCAL_STORAGE_KEYS.ORDERS, orders);
 
     if (this.isConfigured()) {
-      const payload = {
-        id: order.id,
-        date: order.date,
-        items: order.items,
-        total: order.total,
-        taxTotal: order.taxTotal,
-        customer: order.customer
-      };
-      const { error } = await supabase.from('orders').upsert(payload);
-      if (error) throw error;
+      try {
+        const { error } = await supabase.from('orders').upsert(order);
+        if (error) throw error;
+      } catch (error) {
+        console.error("Cloud order save failed:", error);
+      }
     }
   },
 
@@ -162,9 +183,13 @@ export const dbService = {
 
   async getCustomers() {
     if (!this.isConfigured()) return getLocal(LOCAL_STORAGE_KEYS.CUSTOMERS) as Customer[];
-    const { data, error } = await supabase.from('customers').select('*');
-    if (error) return getLocal(LOCAL_STORAGE_KEYS.CUSTOMERS) as Customer[];
-    return data as Customer[];
+    try {
+      const { data, error } = await supabase.from('customers').select('*');
+      if (error) throw error;
+      return data as Customer[];
+    } catch (error) {
+      return getLocal(LOCAL_STORAGE_KEYS.CUSTOMERS) as Customer[];
+    }
   },
 
   async saveCustomer(customer: Customer) {
@@ -196,8 +221,12 @@ export const dbService = {
   async getShopDetails() {
     const localSettings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS);
     if (!this.isConfigured()) return localSettings?.main_details || null;
-    const { data } = await supabase.from('settings').select('*').eq('id', 'main_details').single();
-    return data || localSettings?.main_details || null;
+    try {
+      const { data } = await supabase.from('settings').select('*').eq('id', 'main_details').single();
+      return data || localSettings?.main_details || null;
+    } catch {
+      return localSettings?.main_details || null;
+    }
   },
 
   async saveShopDetails(details: ShopDetails) {
@@ -213,12 +242,16 @@ export const dbService = {
   async resetDatabase() {
     localStorage.clear();
     if (this.isConfigured()) {
-      await Promise.all([
-        supabase.from('products').delete().neq('id', '0'),
-        supabase.from('orders').delete().neq('id', '0'),
-        supabase.from('customers').delete().neq('id', '0'),
-        supabase.from('settings').delete().neq('id', '0')
-      ]);
+      try {
+        await Promise.all([
+          supabase.from('products').delete().neq('id', '0'),
+          supabase.from('orders').delete().neq('id', '0'),
+          supabase.from('customers').delete().neq('id', '0'),
+          supabase.from('settings').delete().neq('id', '0')
+        ]);
+      } catch (e) {
+        console.error("Cloud reset failed:", e);
+      }
     }
   }
 };

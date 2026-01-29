@@ -1,22 +1,23 @@
+
 import { createClient } from '@supabase/supabase-js';
 
-// Access environment variables directly.
-const envUrl = process.env.SUPABASE_URL;
-const envKey = process.env.SUPABASE_KEY;
+// Access environment variables with safe fallbacks
+const getEnv = (key: string, defaultValue: string) => {
+  try {
+    return process.env[key] || defaultValue;
+  } catch {
+    return defaultValue;
+  }
+};
 
-// Use the provided credentials as the specific configuration
-// This allows the app to work without a .env file locally using the user's specific database
-const supabaseUrl = envUrl && envUrl.length > 0 ? envUrl : 'https://peugomttfkbawdnwdhis.supabase.co';
-const supabaseKey = envKey && envKey.length > 0 ? envKey : 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299';
+const supabaseUrl = getEnv('SUPABASE_URL', 'https://peugomttfkbawdnwdhis.supabase.co');
+const supabaseKey = getEnv('SUPABASE_KEY', 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299');
 
-if (supabaseUrl === 'https://placeholder.supabase.co') {
-  console.log("Supabase keys missing. App initializing in Local Mode.");
-} else {
-  console.log("Initializing Supabase with cloud credentials.");
+const isPlaceholder = supabaseUrl.includes('placeholder.supabase.co');
+
+if (isPlaceholder) {
+  console.warn("Supabase keys are currently set to placeholders. Application will run in Local-Only mode.");
 }
 
-// Initialize the client
-export const supabase = createClient(
-  supabaseUrl, 
-  supabaseKey
-);
+// Initialize the client. The URL and KEY must be strings.
+export const supabase = createClient(supabaseUrl, supabaseKey);

@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users } from 'lucide-react';
+import { LayoutDashboard, Store, LogOut, ReceiptText, Settings, BarChart3, Users, AlertCircle, RefreshCw } from 'lucide-react';
 import { POS } from './views/POS';
 import { Inventory } from './views/Inventory';
 import { History } from './views/History';
@@ -37,6 +37,7 @@ const App: React.FC = () => {
   const [shopDetails, setShopDetails] = useState<ShopDetails>(INITIAL_SHOP_DETAILS);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initError, setInitError] = useState<string | null>(null);
   const [editingCustomer, setEditingCustomer] = useState<{name: string, phone: string, place: string} | null>(null);
 
   useEffect(() => {
@@ -44,6 +45,9 @@ const App: React.FC = () => {
 
     const loadData = async () => {
       try {
+        setLoading(true);
+        setInitError(null);
+        
         const connected = dbService.isConfigured();
         const dbProducts = await dbService.getProducts();
         
@@ -71,14 +75,19 @@ const App: React.FC = () => {
                 'customers': async () => setCustomers(await dbService.getCustomers())
             });
         }
-      } catch (error) {
-        console.error("Failed to load data", error);
+      } catch (error: any) {
+        console.error("Failed to load application data:", error);
+        setInitError(error.message || "Unknown error during initialization.");
       } finally {
         setLoading(false);
       }
     };
+    
     loadData();
-    return () => { if (globalSub) dbService.unsubscribe(globalSub); };
+    
+    return () => { 
+      if (globalSub) dbService.unsubscribe(globalSub); 
+    };
   }, []);
 
   const handleAddProduct = async (product: Product) => {
@@ -121,7 +130,6 @@ const App: React.FC = () => {
   };
 
   const handleProcessReturn = async (orderId: string, productId: string, qty: number) => {
-    // 1. Find the order and item
     const orderIndex = orders.findIndex(o => o.id === orderId);
     if (orderIndex === -1) return false;
 
@@ -129,22 +137,18 @@ const App: React.FC = () => {
     const itemIndex = order.items.findIndex(i => i.id === productId);
     if (itemIndex === -1 || order.items[itemIndex].returned) return false;
 
-    // 2. Update Product Stock in DB
     const product = products.find(p => p.id === productId);
     if (product) {
       const updatedProduct = { ...product, stock: (product.stock || 0) + qty };
       await dbService.saveProduct(updatedProduct);
     }
 
-    // 3. Update Order Item Status in DB
     const updatedItems = order.items.map((it, idx) => 
       idx === itemIndex ? { ...it, returned: true } : it
     );
     const updatedOrder = { ...order, items: updatedItems };
     
     await dbService.saveOrder(updatedOrder);
-
-    // 4. Refresh State
     setProducts(await dbService.getProducts());
     setOrders(await dbService.getOrders());
     return true;
@@ -200,9 +204,33 @@ const App: React.FC = () => {
 
   if (loading) {
     return (
-        <div className="flex h-screen w-full items-center justify-center bg-slate-50">
+        <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-50 gap-4">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+            <p className="text-slate-500 font-medium animate-pulse">Initializing SmartPOS...</p>
         </div>
+    );
+  }
+
+  if (initError) {
+    return (
+      <div className="flex h-screen w-full flex-col items-center justify-center bg-slate-50 p-6 text-center">
+        <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-6">
+          <AlertCircle size={32} />
+        </div>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">Failed to Start</h1>
+        <p className="text-slate-500 max-w-md mb-8 leading-relaxed">
+          The application encountered a critical error during startup. This is often due to network issues or CDN availability.
+        </p>
+        <div className="bg-red-50 text-red-700 p-4 rounded-xl text-xs font-mono mb-8 max-w-lg break-all">
+          {initError}
+        </div>
+        <button 
+          onClick={() => window.location.reload()}
+          className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg"
+        >
+          <RefreshCw size={18} /> Retry Loading
+        </button>
+      </div>
     );
   }
 
