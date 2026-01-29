@@ -6,16 +6,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartPOS</title>
     <script>
-      // Crucial: Polyfill process.env BEFORE any other scripts load
-      window.process = window.process || { env: {} };
-      window.process.env = window.process.env || {};
-      window.process.env.API_KEY = window.process.env.API_KEY || '';
-      window.process.env.SUPABASE_URL = window.process.env.SUPABASE_URL || 'https://peugomttfkbawdnwdhis.supabase.co';
-      window.process.env.SUPABASE_KEY = window.process.env.SUPABASE_KEY || 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299';
-      // Some libraries look at globalThis.process
-      if (typeof globalThis !== 'undefined') {
-        globalThis.process = window.process;
-      }
+      // Immediate Polyfill for process.env
+      (function() {
+        const env = {
+          API_KEY: '',
+          SUPABASE_URL: 'https://peugomttfkbawdnwdhis.supabase.co',
+          SUPABASE_KEY: 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299'
+        };
+        window.process = window.process || { env: env };
+        if (typeof globalThis !== 'undefined') {
+          globalThis.process = window.process;
+        }
+      })();
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
@@ -29,18 +31,18 @@
     <script type="importmap">
 {
   "imports": {
-    "html2canvas": "https://esm.sh/html2canvas@^1.4.1",
-    "jszip": "https://esm.sh/jszip@^3.10.1",
-    "lucide-react": "https://esm.sh/lucide-react@^0.562.0",
-    "vite": "https://esm.sh/vite@^7.3.1",
-    "@google/genai": "https://esm.sh/@google/genai@^1.37.0",
-    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "html2canvas": "https://esm.sh/html2canvas@1.4.1",
+    "jszip": "https://esm.sh/jszip@3.10.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.473.0",
     "react": "https://esm.sh/react@19.0.0",
-    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@^2.49.1",
+    "react-dom": "https://esm.sh/react-dom@19.0.0",
+    "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
+    "@google/genai": "https://esm.sh/@google/genai@1.3.0",
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.47.10",
     "react-dom/": "https://esm.sh/react-dom@^19.2.4/",
-    "react/": "https://esm.sh/react@^19.2.4/"
+    "react/": "https://esm.sh/react@^19.2.4/",
+    "vite": "https://esm.sh/vite@^7.3.1",
+    "@vitejs/plugin-react": "https://esm.sh/@vitejs/plugin-react@^5.1.2"
   }
 }
 </script>

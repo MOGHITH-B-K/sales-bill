@@ -1,3 +1,4 @@
+
 {
   "name": "smart-pos",
   "private": true,
@@ -9,19 +10,20 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
     "lucide-react": "^0.344.0",
     "@google/genai": "*",
     "idb": "^8.0.0",
     "@supabase/supabase-js": "^2.39.0",
     "clsx": "^2.1.0",
     "tailwind-merge": "^2.2.0",
-    "html2canvas": "^1.4.1"
+    "html2canvas": "^1.4.1",
+    "jszip": "^3.10.1"
   },
   "devDependencies": {
-    "@types/react": "^18.2.64",
-    "@types/react-dom": "^18.2.21",
+    "@types/react": "^19.0.0",
+    "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.2.1",
     "@types/html2canvas": "^1.0.0",
     "typescript": "^5.4.2",

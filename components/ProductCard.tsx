@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { memo } from 'react';
 import { Plus, AlertCircle, AlertTriangle } from 'lucide-react';
 import { Product } from '../types';
 
@@ -8,9 +8,8 @@ interface ProductCardProps {
   onAdd: (product: Product) => void;
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
+export const ProductCard = memo<ProductCardProps>(({ product, onAdd }) => {
   const isOutOfStock = product.stock <= 0;
-  // Use custom limit or default to 5
   const lowStockThreshold = product.minStockLevel !== undefined ? product.minStockLevel : 5;
   const isLowStock = product.stock > 0 && product.stock <= lowStockThreshold;
 
@@ -30,6 +29,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
           <img 
             src={product.image} 
             alt={product.name} 
+            loading="lazy"
             className={`w-full h-full object-cover ${isOutOfStock ? 'grayscale' : ''}`}
           />
         ) : (
@@ -42,12 +42,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
           </div>
         )}
         
-        {/* Price Badge */}
         <div className="absolute top-2 right-2 bg-white/90 backdrop-blur-sm px-2 py-1 rounded-md text-xs font-bold text-slate-700 shadow-sm">
           ₹{product.price.toFixed(2)}
         </div>
 
-        {/* Out of Stock Overlay */}
         {isOutOfStock && (
           <div className="absolute inset-0 bg-slate-900/10 flex items-center justify-center backdrop-blur-[1px]">
             <span className="bg-red-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg flex items-center gap-1">
@@ -65,7 +63,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
         </h3>
       </div>
       
-      {/* Stock Indicator */}
       <div className="mb-2">
          {isOutOfStock ? (
              <span className="text-[10px] text-red-700 font-bold flex items-center gap-1 bg-red-100 px-2 py-1 rounded-md w-fit border border-red-200">
@@ -100,4 +97,4 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onAdd }) => {
       </button>
     </div>
   );
-};
+});

@@ -10,6 +10,30 @@ const LOCAL_STORAGE_KEYS = {
   SETTINGS: 'settings'
 };
 
+const compressImage = async (base64Str: string): Promise<string> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.src = base64Str;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX_WIDTH = 400;
+      let width = img.width;
+      let height = img.height;
+
+      if (width > MAX_WIDTH) {
+        height *= MAX_WIDTH / width;
+        width = MAX_WIDTH;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx?.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.onerror = () => resolve(base64Str);
+  });
+};
+
 const getLocal = (key: string) => {
   try {
     const item = localStorage.getItem(key);
@@ -26,9 +50,7 @@ const setLocal = (key: string, data: any) => {
 };
 
 export const dbService = {
-  
   isConfigured: () => {
-    // Safer check for valid supabase config
     try {
       const url = (supabase as any).supabaseUrl || "";
       return url && !url.includes('placeholder.supabase.co');
@@ -65,34 +87,32 @@ export const dbService = {
       if (error) throw error;
       return data as Product[];
     } catch (error) {
-      console.warn("Cloud products fetch error, falling back to local:", error);
       return getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     }
   },
 
   async saveProduct(product: Product) {
+    let finalImage = product.image;
+    if (finalImage && finalImage.startsWith('data:image')) {
+      finalImage = await compressImage(finalImage);
+    }
+    
+    const updatedProduct = { ...product, image: finalImage };
     const products = getLocal(LOCAL_STORAGE_KEYS.PRODUCTS) as Product[];
     const index = products.findIndex(p => p.id === product.id);
-    if (index >= 0) products[index] = product;
-    else products.push(product);
+    
+    if (index >= 0) products[index] = updatedProduct;
+    else products.push(updatedProduct);
+    
     setLocal(LOCAL_STORAGE_KEYS.PRODUCTS, products);
 
     if (this.isConfigured()) {
       try {
         const payload = {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          stock: product.stock,
-          category: product.category,
-          description: product.description,
-          image: product.image,
-          taxRate: product.taxRate,
-          minStockLevel: product.minStockLevel,
-          productType: product.productType || 'sale',
-          rentalDuration: product.rentalDuration || ''
+          ...updatedProduct,
+          productType: updatedProduct.productType || 'sale',
+          rentalDuration: updatedProduct.rentalDuration || ''
         };
-
         const { error } = await supabase.from('products').upsert(payload);
         if (error) throw error;
       } catch (error) {
@@ -123,7 +143,6 @@ export const dbService = {
       if (error) throw error;
       return data as Order[];
     } catch (error) {
-      console.warn("Cloud orders fetch error, falling back to local:", error);
       return getLocal(LOCAL_STORAGE_KEYS.ORDERS) as Order[];
     }
   },
@@ -134,9 +153,7 @@ export const dbService = {
       const numId = parseInt(order.id, 10);
       return !isNaN(numId) && numId > max ? numId : max;
     }, 0);
-    
     if (!this.isConfigured()) return (maxLocal + 1).toString();
-    
     try {
       const { data } = await supabase.from('orders').select('id');
       const maxCloud = (data || []).reduce((max, item: any) => {
