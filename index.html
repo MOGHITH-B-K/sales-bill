@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartPOS</title>
     <script>
-      // Immediate Polyfill for process.env
+      // Immediate Polyfill for process.env - Must run before modules
       (function() {
         const env = {
           API_KEY: '',
@@ -24,10 +24,10 @@
         const root = document.getElementById('root');
         if (root) {
           root.innerHTML = `
-            <div style="padding: 2rem; font-family: system-ui; text-align: center; color: #ef4444;">
+            <div style="padding: 2rem; font-family: system-ui; text-align: center; color: #ef4444; background: #fff; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
               <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Startup Error</h1>
-              <p style="color: #64748b; margin-bottom: 2rem;">A script failed to load or crashed during startup.</p>
-              <div style="background: #f8fafc; padding: 1rem; border-radius: 0.75rem; font-family: monospace; font-size: 0.75rem; text-align: left; overflow-x: auto; border: 1px solid #e2e8f0;">
+              <p style="color: #64748b; margin-bottom: 2rem;">The app failed to load. This usually happens due to script resolution errors.</p>
+              <div style="background: #f8fafc; padding: 1rem; border-radius: 0.75rem; font-family: monospace; font-size: 0.75rem; text-align: left; overflow-x: auto; border: 1px solid #e2e8f0; max-width: 90%;">
                 ${msg}<br>at ${url}:${lineNo}:${columnNo}
               </div>
               <button onclick="window.location.reload()" style="margin-top: 2rem; background: #2563eb; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 0.5rem; font-weight: bold; cursor: pointer;">Retry Loading</button>
@@ -40,21 +40,29 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
-      body { font-family: 'Inter', sans-serif; margin: 0; }
+      body { font-family: 'Inter', sans-serif; margin: 0; background-color: #f8fafc; }
       ::-webkit-scrollbar { width: 6px; height: 6px; }
       ::-webkit-scrollbar-track { background: transparent; }
       ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
       ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
       #root:empty::before {
-        content: "Starting Application...";
+        content: "Initializing SmartPOS...";
         position: fixed;
         inset: 0;
         display: flex;
         align-items: center;
         justify-content: center;
         font-weight: 600;
-        color: #64748b;
+        font-size: 1.1rem;
+        color: #3b82f6;
         background: #f8fafc;
+        z-index: 1000;
+        animation: pulse 2s infinite;
+      }
+      @keyframes pulse {
+        0% { opacity: 0.6; }
+        50% { opacity: 1; }
+        100% { opacity: 0.6; }
       }
     </style>
     <script type="importmap">
@@ -63,7 +71,7 @@
     "react": "https://esm.sh/react@19.0.0",
     "react-dom": "https://esm.sh/react-dom@19.0.0",
     "react-dom/client": "https://esm.sh/react-dom@19.0.0/client",
-    "lucide-react": "https://esm.sh/lucide-react@0.473.0",
+    "lucide-react": "https://esm.sh/lucide-react@0.474.0",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
     "jszip": "https://esm.sh/jszip@3.10.1",
     "@google/genai": "https://esm.sh/@google/genai@1.3.0",
@@ -76,7 +84,7 @@
 }
 </script>
   </head>
-  <body class="bg-gray-50 text-slate-800">
+  <body class="text-slate-800">
     <div id="root"></div>
     <script type="module" src="./index.tsx"></script>
   </body>
