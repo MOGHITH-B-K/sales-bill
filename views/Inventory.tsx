@@ -1,9 +1,9 @@
-
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, CheckCircle2, Cloud, CloudOff } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Sparkles, Loader2, Package, Upload, Image as ImageIcon, Store, AlertTriangle, ListFilter, AlertCircle, CheckCircle2, Cloud, CloudOff, FileSpreadsheet } from 'lucide-react';
 import { Product } from '../types';
 import { generateProductDetails } from '../services/gemini';
 import { dbService } from '../services/db';
+import * as XLSX from 'xlsx';
 
 interface InventoryProps {
   products: Product[];
@@ -64,6 +64,23 @@ export const Inventory: React.FC<InventoryProps> = ({
     setIsSaving(false);
     setSaveSuccess(false);
     setIsCustomCategory(false);
+  };
+
+  const handleExportExcel = () => {
+    if (products.length === 0) return;
+    const data = products.map(p => ({
+      'Name': p.name,
+      'Price': p.price,
+      'Stock': p.stock,
+      'Category': p.category,
+      'Description': p.description || '',
+      'Tax Rate (%)': p.taxRate || 0,
+      'Min Stock Level': p.minStockLevel || 5
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Inventory");
+    XLSX.writeFile(workbook, `Inventory_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleSubmit = async (e: React.FormEvent, shouldRedirect: boolean) => {
@@ -171,6 +188,12 @@ export const Inventory: React.FC<InventoryProps> = ({
           <p className="text-slate-500 mt-1">Add product details and set inventory thresholds.</p>
         </div>
         <div className="flex flex-wrap gap-3">
+            <button 
+              onClick={handleExportExcel}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-medium hover:bg-emerald-100 transition-all"
+            >
+              <FileSpreadsheet size={18} /> Export Excel
+            </button>
             <button 
               onClick={() => setIsCategoryModalOpen(true)} 
               className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-all"

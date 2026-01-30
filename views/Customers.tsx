@@ -1,7 +1,7 @@
-
 import React, { useState } from 'react';
-import { Plus, Edit2, Trash2, X, Search, User, Phone, MapPin, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, X, Search, User, Phone, MapPin, Users, FileSpreadsheet } from 'lucide-react';
 import { Customer } from '../types';
+import * as XLSX from 'xlsx';
 
 interface CustomersProps {
   customers: Customer[];
@@ -30,6 +30,19 @@ export const Customers: React.FC<CustomersProps> = ({
     setFormData({ name: '', phone: '', place: '' });
     setEditingId(null);
     setIsModalOpen(false);
+  };
+
+  const handleExportExcel = () => {
+    if (customers.length === 0) return;
+    const data = customers.map(c => ({
+      'Name': c.name,
+      'Phone': c.phone,
+      'Place': c.place
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Customers");
+    XLSX.writeFile(workbook, `Customers_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,6 +89,12 @@ export const Customers: React.FC<CustomersProps> = ({
         </div>
         
         <div className="flex gap-3 w-full md:w-auto">
+            <button 
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-emerald-200 bg-emerald-50 text-emerald-700 font-medium hover:bg-emerald-100 transition-all shadow-sm"
+            >
+                <FileSpreadsheet size={18} /> Export Excel
+            </button>
             <div className="relative flex-grow md:flex-grow-0">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                 <input 
