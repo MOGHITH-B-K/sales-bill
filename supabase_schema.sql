@@ -1,9 +1,3 @@
--- Reset (Optional: Uncomment these lines if you want to wipe existing tables and start fresh)
--- DROP TABLE IF EXISTS public.orders;
--- DROP TABLE IF EXISTS public.products;
--- DROP TABLE IF EXISTS public.customers;
--- DROP TABLE IF EXISTS public.settings;
-
 -- Enable UUID extension
 create extension if not exists "uuid-ossp";
 
@@ -18,14 +12,9 @@ create table if not exists public.products (
   image text, -- Stores Base64 or URL
   "taxRate" numeric default 0,
   "minStockLevel" numeric default 5,
-  "productType" text default 'sale',
   "rentalDuration" text,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
-
--- Ensure new columns exist if table was created with older schema
-alter table public.products add column if not exists "productType" text default 'sale';
-alter table public.products add column if not exists "rentalDuration" text;
 
 -- 2. Orders Table
 create table if not exists public.orders (
@@ -55,10 +44,13 @@ create table if not exists public.settings (
   phone text,
   email text,
   "footerMessage" text,
+  "poweredByText" text,
   logo text,
   "paymentQrCode" text,
   "taxEnabled" boolean default true,
   "defaultTaxRate" numeric default 5,
+  "showLogo" boolean default true,
+  "showPaymentQr" boolean default true,
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
@@ -68,24 +60,14 @@ alter table public.orders enable row level security;
 alter table public.customers enable row level security;
 alter table public.settings enable row level security;
 
--- Policies (Drop first to avoid "already exists" errors)
-drop policy if exists "Allow public access products" on public.products;
+-- Policies
 create policy "Allow public access products" on public.products for all using (true) with check (true);
-
-drop policy if exists "Allow public access orders" on public.orders;
 create policy "Allow public access orders" on public.orders for all using (true) with check (true);
-
-drop policy if exists "Allow public access customers" on public.customers;
 create policy "Allow public access customers" on public.customers for all using (true) with check (true);
-
-drop policy if exists "Allow public access settings" on public.settings;
 create policy "Allow public access settings" on public.settings for all using (true) with check (true);
 
 -- ENABLE REALTIME REPLICATION
--- IMPORTANT: You must run these commands to enable Realtime updates for these tables
 begin;
   drop publication if exists supabase_realtime;
-  create publication supabase_realtime for table products, orders, customers;
+  create publication supabase_realtime for table products, orders, customers, settings;
 commit;
--- Alternatively, if publication exists:
--- alter publication supabase_realtime add table products, orders, customers;

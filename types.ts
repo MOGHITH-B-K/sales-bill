@@ -1,4 +1,3 @@
-
 export interface Product {
   id: string;
   name: string;
@@ -9,8 +8,7 @@ export interface Product {
   image?: string; // Base64 string or URL
   taxRate?: number; // Optional product-specific tax rate
   minStockLevel?: number; // Custom minimum stock alert level
-  productType?: 'sale' | 'rental'; // Added to support POS specific item types
-  rentalDuration?: string; // Added to support rental items
+  rentalDuration?: string; // For rental items or service durations
 }
 
 export interface Customer {
@@ -22,7 +20,6 @@ export interface Customer {
 
 export interface CartItem extends Product {
   qty: number;
-  returned?: boolean; // Track if a rental item has been returned to stock
 }
 
 export interface Order {
@@ -49,6 +46,8 @@ export interface ShopDetails {
   paymentQrCode?: string; // Base64 string
   taxEnabled: boolean;
   defaultTaxRate: number;
+  showLogo?: boolean; // Toggle display on receipt
+  showPaymentQr?: boolean; // Toggle display on receipt
 }
 
 export type ViewState = 'pos' | 'inventory' | 'customers' | 'history' | 'settings' | 'analysis';

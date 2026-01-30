@@ -1,10 +1,11 @@
-
 import { createClient } from '@supabase/supabase-js';
 
 // Access environment variables with safe fallbacks
 const getEnv = (key: string, defaultValue: string) => {
   try {
-    return process.env[key] || defaultValue;
+    // Rely on window.process polyfill from index.html if available
+    const env = (window as any).process?.env || {};
+    return env[key] || defaultValue;
   } catch {
     return defaultValue;
   }
@@ -19,5 +20,5 @@ if (isPlaceholder) {
   console.warn("Supabase keys are currently set to placeholders. Application will run in Local-Only mode.");
 }
 
-// Initialize the client. The URL and KEY must be strings.
+// Initialize the client.
 export const supabase = createClient(supabaseUrl, supabaseKey);

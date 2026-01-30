@@ -20,13 +20,16 @@ const INITIAL_SHOP_DETAILS: ShopDetails = {
   logo: '',
   paymentQrCode: '',
   taxEnabled: true,
-  defaultTaxRate: 5
+  defaultTaxRate: 5,
+  showLogo: true,
+  showPaymentQr: true
 };
 
+// Fix: Removed 'productType' property from INITIAL_PRODUCTS as it is not defined in the Product interface (types.ts)
 const INITIAL_PRODUCTS: Product[] = [
-  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk', taxRate: 5, productType: 'sale' },
-  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry', taxRate: 5, productType: 'sale' },
-  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado', taxRate: 5, productType: 'sale' },
+  { id: '1', name: 'Cappuccino', price: 250, stock: 50, category: 'Beverages', description: 'Rich espresso with frothy milk', taxRate: 5 },
+  { id: '2', name: 'Croissant', price: 180, stock: 30, category: 'Snacks', description: 'Buttery flaky pastry', taxRate: 5 },
+  { id: '3', name: 'Avocado Toast', price: 350, stock: 20, category: 'Food', description: 'Sourdough with fresh avocado', taxRate: 5 },
 ];
 
 const App: React.FC = () => {
@@ -129,31 +132,6 @@ const App: React.FC = () => {
     }
   };
 
-  const handleProcessReturn = async (orderId: string, productId: string, qty: number) => {
-    const orderIndex = orders.findIndex(o => o.id === orderId);
-    if (orderIndex === -1) return false;
-
-    const order = { ...orders[orderIndex] };
-    const itemIndex = order.items.findIndex(i => i.id === productId);
-    if (itemIndex === -1 || order.items[itemIndex].returned) return false;
-
-    const product = products.find(p => p.id === productId);
-    if (product) {
-      const updatedProduct = { ...product, stock: (product.stock || 0) + qty };
-      await dbService.saveProduct(updatedProduct);
-    }
-
-    const updatedItems = order.items.map((it, idx) => 
-      idx === itemIndex ? { ...it, returned: true } : it
-    );
-    const updatedOrder = { ...order, items: updatedItems };
-    
-    await dbService.saveOrder(updatedOrder);
-    setProducts(await dbService.getProducts());
-    setOrders(await dbService.getOrders());
-    return true;
-  };
-
   const handleEditOrder = async (order: Order) => {
       const orderToDelete = orders.find(o => o.id === order.id);
       if (orderToDelete) {
@@ -219,7 +197,7 @@ const App: React.FC = () => {
         </div>
         <h1 className="text-2xl font-bold text-slate-800 mb-2">Failed to Start</h1>
         <p className="text-slate-500 max-w-md mb-8 leading-relaxed">
-          The application encountered a critical error during startup. This is often due to network issues or CDN availability.
+          Initialization error. Check logs for details.
         </p>
         <div className="bg-red-50 text-red-700 p-4 rounded-xl text-xs font-mono mb-8 max-w-lg break-all">
           {initError}
@@ -228,7 +206,7 @@ const App: React.FC = () => {
           onClick={() => window.location.reload()}
           className="flex items-center gap-2 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold hover:bg-blue-700 transition-all shadow-lg"
         >
-          <RefreshCw size={18} /> Retry Loading
+          <RefreshCw size={18} /> Retry
         </button>
       </div>
     );
@@ -249,10 +227,10 @@ const App: React.FC = () => {
           <div className="p-4 space-y-2">
             <button onClick={() => setView('pos')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'pos' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><Store size={22} /><span className="font-medium hidden lg:block">Billing / POS</span></button>
             <button onClick={() => setView('inventory')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'inventory' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><LayoutDashboard size={22} /><span className="font-medium hidden lg:block">Stock Management</span></button>
-            <button onClick={() => setView('history')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'history' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><ReceiptText size={22} /><span className="font-medium hidden lg:block">Orders History</span></button>
-            <button onClick={() => setView('customers')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'customers' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><Users size={22} /><span className="font-medium hidden lg:block">Customer Details</span></button>
+            <button onClick={() => setView('history')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'history' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><ReceiptText size={22} /><span className="font-medium hidden lg:block">Order History</span></button>
+            <button onClick={() => setView('customers')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'customers' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><Users size={22} /><span className="font-medium hidden lg:block">Customers</span></button>
             <button onClick={() => setView('analysis')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'analysis' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><BarChart3 size={22} /><span className="font-medium hidden lg:block">Sales Analysis</span></button>
-            <button onClick={() => setView('settings')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><Settings size={22} /><span className="font-medium hidden lg:block">Shop Settings</span></button>
+            <button onClick={() => setView('settings')} className={`w-full flex items-center gap-3 p-3 rounded-xl transition-all ${view === 'settings' ? 'bg-blue-600 text-white shadow-lg' : 'hover:bg-slate-800'}`}><Settings size={22} /><span className="font-medium hidden lg:block">Settings</span></button>
           </div>
         </div>
         <div className="p-4 border-t border-slate-800">
@@ -263,7 +241,7 @@ const App: React.FC = () => {
         <div className="h-full overflow-y-auto scroll-smooth">
           {view === 'pos' && <POS products={products} customers={customers} cart={cart} setCart={setCart} onSaveOrder={handleSaveOrder} onSaveCustomer={handleAddCustomer} shopDetails={shopDetails} onManageStock={() => setView('inventory')} onViewHistory={() => setView('history')} initialCustomer={editingCustomer} onAddProduct={handleAddProduct} />}
           {view === 'inventory' && <Inventory products={products} onAddProduct={handleAddProduct} onUpdateProduct={handleUpdateProduct} onDeleteProduct={handleDeleteProduct} onClearProducts={handleClearProducts} onNavigateToPos={() => setView('pos')} defaultTaxRate={shopDetails.defaultTaxRate} />}
-          {view === 'history' && <History orders={orders} onDeleteOrder={async (id) => { const o = orders.find(x => x.id === id); if (o) { for (const item of o.items) { const p = products.find(y => y.id === item.id); if (p) await dbService.saveProduct({...p, stock: p.stock + item.qty}); } } await dbService.deleteOrder(id); setOrders(await dbService.getOrders()); setProducts(await dbService.getProducts()); }} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onEditOrder={handleEditOrder} shopDetails={shopDetails} onRestoreStock={handleProcessReturn} />}
+          {view === 'history' && <History orders={orders} onDeleteOrder={async (id) => { const o = orders.find(x => x.id === id); if (o) { for (const item of o.items) { const p = products.find(y => y.id === item.id); if (p) await dbService.saveProduct({...p, stock: p.stock + item.qty}); } } await dbService.deleteOrder(id); setOrders(await dbService.getOrders()); setProducts(await dbService.getProducts()); }} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onEditOrder={handleEditOrder} shopDetails={shopDetails} />}
           {view === 'analysis' && <DailyAnalysis orders={orders} shopDetails={shopDetails} />}
           {view === 'customers' && <Customers customers={customers} onAddCustomer={handleAddCustomer} onUpdateCustomer={handleUpdateCustomer} onDeleteCustomer={handleDeleteCustomer} />}
           {view === 'settings' && <ShopSettings shopDetails={shopDetails} onSave={handleSaveSettings} orders={orders} customers={customers} onClearOrders={async () => { await dbService.clearOrders(); setOrders([]); }} onClearProducts={handleClearProducts} onClearCustomers={async () => { await dbService.clearCustomers(); setCustomers([]); }} onFactoryReset={handleFactoryReset} onAddProduct={handleAddProduct} />}

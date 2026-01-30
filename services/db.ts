@@ -1,4 +1,3 @@
-
 import { supabase } from './supabaseClient';
 import { Product, Order, ShopDetails, Customer } from '../types';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -108,12 +107,7 @@ export const dbService = {
 
     if (this.isConfigured()) {
       try {
-        const payload = {
-          ...updatedProduct,
-          productType: updatedProduct.productType || 'sale',
-          rentalDuration: updatedProduct.rentalDuration || ''
-        };
-        const { error } = await supabase.from('products').upsert(payload);
+        const { error } = await supabase.from('products').upsert(updatedProduct);
         if (error) throw error;
       } catch (error) {
         console.error("Cloud product save failed:", error);
@@ -153,14 +147,14 @@ export const dbService = {
       const numId = parseInt(order.id, 10);
       return !isNaN(numId) && numId > max ? numId : max;
     }, 0);
+    
     if (!this.isConfigured()) return (maxLocal + 1).toString();
+    
     try {
-      const { data } = await supabase.from('orders').select('id');
-      const maxCloud = (data || []).reduce((max, item: any) => {
-        const numId = parseInt(item.id, 10);
-        return !isNaN(numId) && numId > max ? numId : max;
-      }, 0);
-      return (Math.max(maxLocal, maxCloud) + 1).toString();
+      // Fetch only the latest ID to find the max
+      const { data } = await supabase.from('orders').select('id').order('id', { ascending: false }).limit(1);
+      const maxCloud = (data && data.length > 0) ? parseInt(data[0].id, 10) : 0;
+      return (Math.max(maxLocal, isNaN(maxCloud) ? 0 : maxCloud) + 1).toString();
     } catch {
       return (maxLocal + 1).toString();
     }
@@ -237,12 +231,13 @@ export const dbService = {
 
   async getShopDetails() {
     const localSettings = getLocal(LOCAL_STORAGE_KEYS.SETTINGS);
-    if (!this.isConfigured()) return localSettings?.main_details || null;
+    const mainDetails = localSettings?.main_details || null;
+    if (!this.isConfigured()) return mainDetails;
     try {
-      const { data } = await supabase.from('settings').select('*').eq('id', 'main_details').single();
-      return data || localSettings?.main_details || null;
+      const { data } = await supabase.from('settings').select('*').eq('id', 'main_details').maybeSingle();
+      return data || mainDetails;
     } catch {
-      return localSettings?.main_details || null;
+      return mainDetails;
     }
   },
 

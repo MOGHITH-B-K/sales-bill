@@ -1,8 +1,9 @@
 
 import React, { useState, useRef } from 'react';
-import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle, Cloud, ExternalLink, Code, FileUp, CheckCircle2, Loader2, Sparkles } from 'lucide-react';
+import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle, Cloud, ExternalLink, Code, FileUp, CheckCircle2, Loader2, Sparkles, ToggleLeft, ToggleRight, FileSpreadsheet } from 'lucide-react';
 import { ShopDetails, Order, Customer, Product } from '../types';
 import { dbService } from '../services/db';
+import * as XLSX from 'xlsx';
 
 interface ShopSettingsProps {
   shopDetails: ShopDetails;
@@ -44,6 +45,14 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
     setIsSaved(false);
   };
 
+  const handleToggle = (name: keyof ShopDetails) => {
+    setFormData(prev => ({
+        ...prev,
+        [name]: !prev[name]
+    }));
+    setIsSaved(false);
+  };
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>, field: 'logo' | 'paymentQrCode') => {
     const file = e.target.files?.[0];
     if (file) {
@@ -71,7 +80,7 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
     setTimeout(() => setIsSaved(false), 3000);
   };
 
-  const handleCSVImport = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -80,68 +89,65 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
     const reader = new FileReader();
     
     reader.onload = async (event) => {
-      const text = event.target?.result as string;
-      const lines = text.split('\n');
-      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-      
-      let importedCount = 0;
-      
-      for (let i = 1; i < lines.length; i++) {
-        if (!lines[i].trim()) continue;
-        const values = lines[i].split(',').map(v => v.trim());
-        const product: Partial<Product> = {
-          id: Date.now().toString() + i,
-          taxRate: shopDetails.defaultTaxRate,
-          minStockLevel: 5
-        };
+      try {
+        const data = event.target?.result;
+        const workbook = XLSX.read(data, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const sheet = workbook.Sheets[sheetName];
+        const json: any[] = XLSX.utils.sheet_to_json(sheet);
+        
+        let importedCount = 0;
+        for (let i = 0; i < json.length; i++) {
+          const row = json[i];
+          const product: Product = {
+            id: Date.now().toString() + i,
+            name: row.name || row.Name || '',
+            price: parseFloat(row.price || row.Price) || 0,
+            stock: parseInt(row.stock || row.Stock) || 0,
+            category: row.category || row.Category || 'General',
+            description: row.description || row.Description || '',
+            taxRate: row.taxRate || row.TaxRate || shopDetails.defaultTaxRate,
+            minStockLevel: row.minStockLevel || row.MinStockLevel || 5
+          };
 
-        headers.forEach((header, index) => {
-          if (header === 'name') product.name = values[index];
-          if (header === 'price') product.price = parseFloat(values[index]) || 0;
-          if (header === 'stock') product.stock = parseInt(values[index]) || 0;
-          if (header === 'category') product.category = values[index] || 'General';
-          if (header === 'description') product.description = values[index];
-        });
-
-        if (product.name && product.price !== undefined) {
-          await onAddProduct(product as Product);
-          importedCount++;
+          if (product.name && product.price !== undefined) {
+            await onAddProduct(product);
+            importedCount++;
+          }
         }
-      }
 
-      setImportStatus({ success: true, count: importedCount });
-      setIsImporting(false);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-      setTimeout(() => setImportStatus(null), 5000);
+        setImportStatus({ success: true, count: importedCount });
+      } catch (err) {
+        console.error("Excel import failed:", err);
+        alert("Failed to parse Excel file. Ensure headers: name, price, stock, category.");
+      } finally {
+        setIsImporting(false);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        setTimeout(() => setImportStatus(null), 5000);
+      }
     };
 
-    reader.readAsText(file);
+    reader.readAsBinaryString(file);
   };
 
-  const exportOrdersCSV = () => {
+  const exportOrdersExcel = () => {
     if (orders.length === 0) return alert("No orders available to export.");
-    const headers = ["OrderID", "Date", "TotalAmount", "TaxTotal", "ItemsCount", "CustomerName", "CustomerPhone"];
-    const rows = orders.map(o => [
-        o.id,
-        new Date(o.date).toLocaleString(),
-        o.total,
-        o.taxTotal,
-        o.items.length,
-        o.customer?.name || '',
-        o.customer?.phone || ''
-    ]);
-    const csvContent = "data:text/csv;charset=utf-8," + headers.join(",") + "\n" + rows.map(r => r.join(",")).join("\n");
-    downloadCSV(csvContent, "orders_export.csv");
-  };
+    
+    const data = orders.map(o => ({
+      'Order ID': o.id,
+      'Date': new Date(o.date).toLocaleString(),
+      'Total Amount': o.total,
+      'Tax Amount': o.taxTotal,
+      'Items Count': o.items.length,
+      'Customer Name': o.customer?.name || 'Walk-in Guest',
+      'Customer Phone': o.customer?.phone || '',
+      'Customer Place': o.customer?.place || ''
+    }));
 
-  const downloadCSV = (content: string, fileName: string) => {
-    const encodedUri = encodeURI(content);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", fileName);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Orders");
+    XLSX.writeFile(workbook, `Shop_Orders_Export_${new Date().toISOString().split('T')[0]}.xlsx`);
   };
 
   const handleReset = async (type: 'orders' | 'products' | 'customers' | 'all') => {
@@ -204,9 +210,9 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
                         <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Supabase SQL Schema</label>
                         <div className="bg-slate-900 rounded-xl p-4 overflow-x-auto">
                           <pre className="text-[11px] text-green-400 font-mono">
-{`create table products (id text primary key, name text not null, price numeric not null, stock numeric default 0, category text not null, description text, image text);
+{`create table products (id text primary key, name text not null, price numeric not null, stock numeric default 0, category text not null, description text, image text, "taxRate" numeric, "minStockLevel" numeric, "rentalDuration" text);
 create table orders (id text primary key, date timestamp with time zone not null, items jsonb not null, total numeric not null, "taxTotal" numeric not null, customer jsonb);
-create table settings (id text primary key, name text, address text, phone text, email text, "footerMessage" text, "poweredByText" text, logo text, "paymentQrCode" text, "taxEnabled" boolean default true, "defaultTaxRate" numeric default 5);`}
+create table settings (id text primary key, name text, address text, phone text, email text, "footerMessage" text, "poweredByText" text, logo text, "paymentQrCode" text, "taxEnabled" boolean, "defaultTaxRate" numeric, "showLogo" boolean, "showPaymentQr" boolean);`}
                           </pre>
                         </div>
                       </div>
@@ -219,80 +225,118 @@ create table settings (id text primary key, name text, address text, phone text,
           {/* Branding & Contact */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
-              <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
-                  <Store size={24} />
-              </div>
-              <h3 className="font-semibold text-lg text-slate-800">Branding & Credits</h3>
+                <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
+                    <Store size={24} />
+                </div>
+                <h3 className="font-semibold text-lg text-slate-800">Branding & Credits</h3>
               </div>
 
               <div className="p-8 space-y-8">
-              
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {/* Logo Upload */}
-                  <div className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-slate-700">Receipt Logo</span>
-                      <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
-                          {formData.logo ? (
-                              <img src={formData.logo} alt="Shop Logo" className="w-full h-full object-contain p-2" />
-                          ) : (
-                              <div className="flex flex-col items-center text-slate-400 text-center p-4">
-                                <ImageIcon size={24} className="mb-2 opacity-50" />
-                                <span className="text-xs font-bold uppercase tracking-wider">Upload Shop Logo</span>
-                              </div>
-                          )}
-                          <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
-                      </div>
-                      {formData.logo && (
-                          <button type="button" onClick={() => removeImage('logo')} className="text-[10px] text-red-500 font-bold uppercase self-center mt-1">Remove</button>
-                      )}
-                  </div>
+                {/* Receipt Toggle Options */}
+                <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-800">Show Logo on Receipt</h4>
+                            <p className="text-[10px] text-slate-400">Enable to display shop logo at top.</p>
+                        </div>
+                        <button type="button" onClick={() => handleToggle('showLogo')}>
+                            {formData.showLogo ? <ToggleRight className="text-blue-600" size={32} /> : <ToggleLeft className="text-slate-300" size={32} />}
+                        </button>
+                    </div>
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h4 className="text-sm font-bold text-slate-800">Show Payment QR</h4>
+                            <p className="text-[10px] text-slate-400">Display Scan to Pay section.</p>
+                        </div>
+                        <button type="button" onClick={() => handleToggle('showPaymentQr')}>
+                            {formData.showPaymentQr ? <ToggleRight className="text-blue-600" size={32} /> : <ToggleLeft className="text-slate-300" size={32} />}
+                        </button>
+                    </div>
+                </div>
 
-                  {/* Powered By Text */}
-                  <div className="flex flex-col gap-2">
-                      <span className="text-sm font-medium text-slate-700">Receipt Credit Line</span>
-                      <div className="space-y-4">
-                        <input 
-                            type="text" 
-                            name="poweredByText"
-                            value={formData.poweredByText}
-                            onChange={handleChange}
-                            className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium"
-                            placeholder="e.g. Powered by MyShop"
-                        />
-                        <p className="text-[10px] text-slate-400 leading-tight">
-                            This text appears at the very bottom of every printed receipt. Use it for branding or white-labeling.
-                        </p>
-                      </div>
-                  </div>
-              </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                    {/* Logo Upload */}
+                    <div className="flex flex-col gap-2">
+                        <span className="text-sm font-medium text-slate-700">Receipt Logo Image</span>
+                        <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
+                            {formData.logo ? (
+                                <img src={formData.logo} alt="Shop Logo" className="w-full h-full object-contain p-2" />
+                            ) : (
+                                <div className="flex flex-col items-center text-slate-400 text-center p-4">
+                                    <ImageIcon size={24} className="mb-2 opacity-50" />
+                                    <span className="text-xs font-bold uppercase tracking-wider">Upload Shop Logo</span>
+                                </div>
+                            )}
+                            <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'logo')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                        </div>
+                        {formData.logo && (
+                            <button type="button" onClick={() => removeImage('logo')} className="text-[10px] text-red-500 font-bold uppercase self-center mt-1">Remove</button>
+                        )}
+                    </div>
 
-              <div className="space-y-6">
-                  <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Business Name</label>
-                      <input type="text" name="name" required value={formData.name} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
-                  </div>
+                    {/* Payment QR Upload */}
+                    <div className="flex flex-col gap-2">
+                        <span className="text-sm font-medium text-slate-700">Payment QR Code</span>
+                        <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
+                            {formData.paymentQrCode ? (
+                                <img src={formData.paymentQrCode} alt="Payment QR" className="w-full h-full object-contain p-2" />
+                            ) : (
+                                <div className="flex flex-col items-center text-slate-400 text-center p-4">
+                                    <QrCode size={24} className="mb-2 opacity-50" />
+                                    <span className="text-xs font-bold uppercase tracking-wider">Upload QR Code</span>
+                                </div>
+                            )}
+                            <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e, 'paymentQrCode')} className="absolute inset-0 opacity-0 cursor-pointer" />
+                        </div>
+                        {formData.paymentQrCode && (
+                            <button type="button" onClick={() => removeImage('paymentQrCode')} className="text-[10px] text-red-500 font-bold uppercase self-center mt-1">Remove</button>
+                        )}
+                    </div>
+                </div>
 
-                  <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Address & Header Info</label>
-                      <textarea name="address" rows={2} value={formData.address} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm font-medium" />
-                  </div>
+                <div className="space-y-6">
+                    <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Business Name</label>
+                        <input type="text" name="name" required value={formData.name} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
+                    </div>
 
-                  <div>
-                      <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Footer Message</label>
-                      <input type="text" name="footerMessage" value={formData.footerMessage} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" placeholder="Thank you message..." />
-                  </div>
-              </div>
+                    <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Address & Header Info</label>
+                        <textarea name="address" rows={2} value={formData.address} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none text-sm font-medium" />
+                    </div>
 
-              <div className="pt-4 flex items-center justify-end gap-4 border-t border-slate-100">
-                  {isSaved && <span className="text-green-600 font-bold text-sm flex items-center gap-1"><CheckCircle2 size={16}/> Saved</span>}
-                  <button type="submit" className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition-all shadow-xl">
-                    <Save size={18} /> Update Shop Data
-                  </button>
-              </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                         <div>
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Receipt Credit Line</label>
+                            <input type="text" name="poweredByText" value={formData.poweredByText} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-medium text-sm" placeholder="e.g. Powered by MyShop" />
+                        </div>
+                        <div>
+                            <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Tax Percentage (%)</label>
+                            <div className="flex items-center gap-3">
+                                <input type="number" name="defaultTaxRate" value={formData.defaultTaxRate} onChange={handleChange} className="flex-1 px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 font-bold" />
+                                <button type="button" onClick={() => handleToggle('taxEnabled')} className="shrink-0">
+                                    {formData.taxEnabled ? <ToggleRight className="text-blue-600" size={32} /> : <ToggleLeft className="text-slate-300" size={32} />}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-1.5">Footer Message</label>
+                        <input type="text" name="footerMessage" value={formData.footerMessage} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-medium" placeholder="Thank you message..." />
+                    </div>
+                </div>
+
+                <div className="pt-4 flex items-center justify-end gap-4 border-t border-slate-100">
+                    {isSaved && <span className="text-green-600 font-bold text-sm flex items-center gap-1"><CheckCircle2 size={16}/> Saved</span>}
+                    <button type="submit" className="flex items-center gap-2 bg-slate-900 text-white px-8 py-3 rounded-xl font-black uppercase tracking-widest text-xs hover:bg-blue-600 transition-all shadow-xl">
+                        <Save size={18} /> Update Shop Data
+                    </button>
+                </div>
               </div>
           </div>
           
-          {/* Data Management & CSV Import */}
+          {/* Data Management & Bulk Operations */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
                   <div className="p-2 bg-green-100 text-green-600 rounded-lg">
@@ -302,20 +346,20 @@ create table settings (id text primary key, name text, address text, phone text,
               </div>
               <div className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* CSV Import */}
-                      <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 relative overflow-hidden">
-                          <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                             <FileUp size={14} className="text-blue-600" /> Bulk Import Products
+                      {/* Excel Import */}
+                      <div className="bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100 relative overflow-hidden">
+                          <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
+                             <FileSpreadsheet size={14} /> Bulk Import Products (Excel)
                           </h4>
                           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-                            Upload a CSV file to quickly add products. Ensure columns: <b>name, price, stock, category, description</b>.
+                            Upload an Excel (.xlsx) or CSV file. Headers: <b>name, price, stock, category</b>.
                           </p>
                           
                           <input 
                             type="file" 
                             ref={fileInputRef}
-                            accept=".csv" 
-                            onChange={handleCSVImport} 
+                            accept=".xlsx,.xls,.csv" 
+                            onChange={handleExcelImport} 
                             className="hidden" 
                           />
                           
@@ -323,10 +367,10 @@ create table settings (id text primary key, name text, address text, phone text,
                             type="button"
                             disabled={isImporting}
                             onClick={() => fileInputRef.current?.click()}
-                            className="w-full py-3 bg-white border border-slate-200 text-slate-800 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-blue-50 hover:border-blue-200 transition-all shadow-sm flex items-center justify-center gap-2"
+                            className="w-full py-3 bg-white border border-emerald-200 text-emerald-800 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-emerald-50 hover:border-emerald-300 transition-all shadow-sm flex items-center justify-center gap-2"
                           >
-                             {isImporting ? <Loader2 className="animate-spin" size={16}/> : <Sparkles size={14} className="text-blue-500" />}
-                             {isImporting ? 'Processing CSV...' : 'Select CSV File'}
+                             {isImporting ? <Loader2 className="animate-spin" size={16}/> : <FileUp size={14} className="text-emerald-500" />}
+                             {isImporting ? 'Processing File...' : 'Select Excel/CSV File'}
                           </button>
 
                           {importStatus && (
@@ -362,15 +406,15 @@ create table settings (id text primary key, name text, address text, phone text,
 
                   <div className="mt-8 pt-8 border-t border-slate-100 flex justify-between items-center">
                       <div className="flex items-center gap-2">
-                          <Download size={18} className="text-slate-400" />
+                          <FileSpreadsheet size={18} className="text-emerald-600" />
                           <span className="text-xs font-bold text-slate-500">Backup Current Sales Data</span>
                       </div>
                       <button 
                           type="button"
-                          onClick={exportOrdersCSV}
-                          className="px-6 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors"
+                          onClick={exportOrdersExcel}
+                          className="px-6 py-2 bg-emerald-600 text-white font-bold text-xs rounded-lg hover:bg-emerald-700 transition-colors shadow-sm"
                       >
-                          Export Orders (CSV)
+                          Export Orders (Excel)
                       </button>
                   </div>
               </div>

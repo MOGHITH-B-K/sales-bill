@@ -55,7 +55,9 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
               .mx-auto { margin-left: auto; margin-right: auto; }
               .border-t { border-top: 1px solid black; }
               .border-b { border-bottom: 1px solid black; }
+              .border-y { border-top: 1px solid black; border-bottom: 1px solid black; }
               .border-dashed { border-style: dashed; }
+              .text-2xl { font-size: 24px; }
               .text-xl { font-size: 20px; }
               .text-lg { font-size: 18px; }
               .text-sm { font-size: 14px; }
@@ -70,8 +72,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
               .mt-4 { margin-top: 16px; }
               .mt-6 { margin-top: 24px; }
               .my-2 { margin-top: 8px; margin-bottom: 8px; }
-              .pt-2 { padding-top: 8px; }
+              .my-4 { margin-top: 16px; margin-bottom: 16px; }
               .py-1 { padding-top: 4px; padding-bottom: 4px; }
+              .py-2 { padding-top: 8px; padding-bottom: 8px; }
+              .tracking-widest { letter-spacing: 0.1em; }
               table { width: 100%; border-collapse: collapse; }
               td, th { vertical-align: top; }
               img { max-width: 100%; height: auto; }
@@ -104,21 +108,18 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
 
   useEffect(() => {
     if (autoPrint) {
-      // Polling mechanism to ensure element exists before printing
       let attempt = 0;
       const checkAndPrint = () => {
           const el = document.getElementById('printable-receipt');
           if (el) {
               handlePrint();
-          } else if (attempt < 10) { // Try for ~2 seconds
+          } else if (attempt < 10) {
               attempt++;
               setTimeout(checkAndPrint, 200);
           } else {
-              // Gave up
               setIsPrinting(false);
           }
       };
-      
       const timer = setTimeout(checkAndPrint, 300);
       return () => clearTimeout(timer);
     }
@@ -132,7 +133,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
         element.style.padding = '20px'; 
         element.style.width = '350px'; 
         element.style.margin = '0 auto';
-        
         try {
             const canvas = await html2canvas(element, {
                 scale: 2,
@@ -140,7 +140,6 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                 logging: false,
                 useCORS: true
             });
-            
             const link = document.createElement('a');
             link.download = `Receipt_${order?.id || 'doc'}.png`;
             link.href = canvas.toDataURL('image/png');
@@ -154,32 +153,21 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
   };
 
   if (!order) return null;
-
   const subTotal = order.total - (order.taxTotal || 0);
 
   return (
     <div className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/60 backdrop-blur-sm p-4">
       <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        
-        {/* Header */}
         <div className="flex justify-between items-center p-4 border-b border-slate-100 bg-white shrink-0">
           <div className="flex items-center gap-2">
               <h3 className="font-bold text-lg text-slate-800">Transaction Complete</h3>
               {isPrinting && <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full flex items-center gap-1"><Loader2 size={10} className="animate-spin"/> Printing...</span>}
           </div>
           <div className="flex gap-2">
-             <button 
-              onClick={handleDownload}
-              className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors"
-              title="Download as Image"
-            >
+             <button onClick={handleDownload} className="flex items-center gap-2 px-3 py-1.5 bg-slate-100 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-200 transition-colors">
               <Download size={16} /> Save
             </button>
-            <button 
-              onClick={handlePrint}
-              disabled={isPrinting}
-              className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70"
-            >
+            <button onClick={handlePrint} disabled={isPrinting} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-70">
               <Printer size={16} /> Print
             </button>
             <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 hover:bg-slate-100 rounded-lg transition-colors">
@@ -188,11 +176,10 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
           </div>
         </div>
 
-        {/* Receipt Preview Area */}
         <div className="overflow-y-auto bg-slate-50 flex-1 p-8">
             <div id="printable-receipt" className="max-w-[300px] mx-auto bg-white p-4 shadow-sm">
                 <div className="text-center mb-4">
-                    {shopDetails.logo && (
+                    {shopDetails.showLogo && shopDetails.logo && (
                         <div className="flex justify-center mb-2">
                             <img src={shopDetails.logo} alt="Logo" className="h-12 object-contain grayscale" />
                         </div>
@@ -202,18 +189,16 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                     {shopDetails.phone && <p className="text-[10px] text-black mt-1">Tel: {shopDetails.phone}</p>}
                 </div>
 
-                <div className="border-t border-dashed border-slate-400 my-2"></div>
-
-                <div className="flex justify-between text-xs text-black mb-1 font-mono">
-                    <span>Order #:</span>
-                    <span className="font-bold">{order.id}</span>
+                {/* Highlighted Order ID Section */}
+                <div className="text-center my-4 border-y border-black py-2">
+                    <div className="text-[10px] uppercase font-bold text-black font-mono">Order Transaction ID</div>
+                    <div className="text-xl font-black tracking-widest text-black font-mono"># {order.id}</div>
                 </div>
+
                 <div className="flex justify-between text-xs text-black font-mono">
                     <span>Date:</span>
                     <span>{new Date(order.date).toLocaleString()}</span>
                 </div>
-
-                {/* Customer Details Section */}
                 {order.customer && (
                     <div className="mt-2 text-[10px] text-black font-mono border-t border-dashed border-slate-300 pt-2">
                         {order.customer.name && <div>Cust: {order.customer.name}</div>}
@@ -221,9 +206,7 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                         {order.customer.place && <div>Loc: {order.customer.place}</div>}
                     </div>
                 )}
-
                 <div className="border-t border-dashed border-slate-400 my-2"></div>
-
                 <table className="w-full text-xs font-mono mb-2">
                     <thead className="text-black border-b border-black">
                     <tr>
@@ -232,22 +215,17 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                         <th className="text-right py-1">Amt</th>
                     </tr>
                     </thead>
-                    <tbody className="">
+                    <tbody>
                     {order.items.map((item, index) => (
                         <tr key={`${item.id}-${index}`}>
-                        <td className="py-1 text-black align-top">
-                            <div>{item.name}</div>
-                            {item.productType === 'rental' && <div className="text-[9px] text-slate-600">({item.rentalDuration || 'RENTAL'})</div>}
-                        </td>
+                        <td className="py-1 text-black align-top">{item.name}</td>
                         <td className="py-1 text-center text-black align-top">{item.qty}</td>
                         <td className="py-1 text-right font-medium text-black align-top">{(item.price * item.qty).toFixed(2)}</td>
                         </tr>
                     ))}
                     </tbody>
                 </table>
-
                 <div className="border-t border-dashed border-slate-400 my-2"></div>
-
                 <div className="space-y-1 font-mono text-xs text-black">
                     <div className="flex justify-between">
                     <span>Subtotal</span>
@@ -264,15 +242,13 @@ export const ReceiptModal: React.FC<ReceiptModalProps> = ({ order, shopDetails, 
                         <span>0.00</span>
                         </div>
                     )}
-                    
                     <div className="flex justify-between text-sm font-bold pt-2 mt-1 border-t border-black">
                     <span>TOTAL</span>
                     <span>₹{order.total.toFixed(2)}</span>
                     </div>
                 </div>
-
                 <div className="mt-6 text-center space-y-4">
-                    {shopDetails.paymentQrCode && (
+                    {shopDetails.showPaymentQr && shopDetails.paymentQrCode && (
                         <div className="flex flex-col items-center gap-1">
                             <p className="text-[10px] font-bold text-black uppercase">Scan to Pay</p>
                             <img src={shopDetails.paymentQrCode} alt="Payment QR" className="w-24 h-24 border border-black p-1" />

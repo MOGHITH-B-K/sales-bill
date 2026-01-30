@@ -1,6 +1,8 @@
+
 import React, { useState, useMemo } from 'react';
 import { Order, ShopDetails } from '../types';
-import { Printer, Calendar, TrendingUp, ShoppingBag, DollarSign } from 'lucide-react';
+import { Printer, Calendar, TrendingUp, ShoppingBag, DollarSign, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
 
 interface DailyAnalysisProps {
   orders: Order[];
@@ -52,6 +54,32 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
 
     return { totalSales, orderCount, avgOrder, itemBreakdown };
   }, [dailyOrders]);
+
+  const handleExportExcel = () => {
+    if (stats.itemBreakdown.length === 0) return;
+
+    const summaryData = [
+      { 'Metric': 'Total Sales (Gross)', 'Value': stats.totalSales },
+      { 'Metric': 'Total Orders', 'Value': stats.orderCount },
+      { 'Metric': 'Average Ticket Size', 'Value': stats.avgOrder },
+      { 'Metric': 'Selected Date', 'Value': selectedDate }
+    ];
+
+    const breakdownData = stats.itemBreakdown.map(item => ({
+      'Product Name': item.name,
+      'Quantity Sold': item.qty,
+      'Revenue (Excl Tax)': item.revenue
+    }));
+
+    const workbook = XLSX.utils.book_new();
+    const summarySheet = XLSX.utils.json_to_sheet(summaryData);
+    const breakdownSheet = XLSX.utils.json_to_sheet(breakdownData);
+
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Report Summary");
+    XLSX.utils.book_append_sheet(workbook, breakdownSheet, "Itemized Breakdown");
+    
+    XLSX.writeFile(workbook, `Z_Report_${selectedDate}.xlsx`);
+  };
 
   const handlePrint = () => {
      const content = document.getElementById('z-report-print');
@@ -136,13 +164,19 @@ export const DailyAnalysis: React.FC<DailyAnalysisProps> = ({ orders, shopDetail
           <h2 className="text-3xl font-bold text-slate-800">Daily Sales Analysis</h2>
           <p className="text-slate-500 mt-1">Review performance and print End-of-Day (Z) Reports.</p>
         </div>
-        <div className="flex gap-4 items-center">
+        <div className="flex flex-wrap gap-4 items-center">
             <input 
                 type="date" 
                 value={selectedDate}
                 onChange={(e) => setSelectedDate(e.target.value)}
                 className="px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
             />
+            <button 
+                onClick={handleExportExcel}
+                className="flex items-center gap-2 bg-emerald-600 text-white px-5 py-2 rounded-xl font-medium hover:bg-emerald-700 transition-colors shadow-lg"
+            >
+                <FileSpreadsheet size={18} /> Export Excel
+            </button>
             <button 
                 onClick={handlePrint}
                 className="flex items-center gap-2 bg-slate-900 text-white px-5 py-2 rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-lg"
