@@ -6,27 +6,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SmartPOS - Walk-in Billing</title>
     <script>
-      // Immediate Polyfill for process.env
-      (function() {
-        const env = {
-          API_KEY: '',
-          SUPABASE_URL: 'https://peugomttfkbawdnwdhis.supabase.co',
-          SUPABASE_KEY: 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299'
-        };
-        window.process = window.process || { env: env };
-        if (typeof globalThis !== 'undefined') {
-          globalThis.process = window.process;
-        }
-      })();
+      // Immediate Polyfill for process.env to handle legacy library expectations
+      window.process = window.process || {};
+      window.process.env = window.process.env || {
+        API_KEY: '',
+        SUPABASE_URL: 'https://peugomttfkbawdnwdhis.supabase.co',
+        SUPABASE_KEY: 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299'
+      };
+      if (typeof globalThis !== 'undefined') {
+        globalThis.process = window.process;
+      }
 
       // Global error tracker to show on screen if JS crashes before React mounts
       window.onerror = function(msg, url, lineNo, columnNo, error) {
         const root = document.getElementById('root');
-        if (root) {
+        if (root && !root.innerHTML.trim()) {
           root.innerHTML = `
             <div style="padding: 2rem; font-family: system-ui; text-align: center; color: #ef4444; background: #fff; height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;">
               <h1 style="font-size: 1.5rem; font-weight: bold; margin-bottom: 1rem;">Application Startup Error</h1>
-              <p style="color: #64748b; margin-bottom: 2rem;">The app failed to load. This usually happens due to script resolution errors.</p>
+              <p style="color: #64748b; margin-bottom: 2rem;">The app failed to load. This can happen if build files are missing or a script fails.</p>
               <div style="background: #f8fafc; padding: 1rem; border-radius: 0.75rem; font-family: monospace; font-size: 0.75rem; text-align: left; overflow-x: auto; border: 1px solid #e2e8f0; max-width: 90%;">
                 ${msg}<br>at ${url}:${lineNo}:${columnNo}
               </div>

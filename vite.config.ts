@@ -4,24 +4,28 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, (process as any).cwd(), '');
+  
   return {
     plugins: [react()],
     define: {
-      // Ensure process.env is available for libraries that expect it
+      'process.env.API_KEY': JSON.stringify(env.API_KEY || ''),
+      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL || 'https://peugomttfkbawdnwdhis.supabase.co'),
+      'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY || 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299'),
+      // Global fallback for process.env to prevent runtime errors in certain environments
       'process.env': {
-        API_KEY: JSON.stringify(env.API_KEY || ''),
-        SUPABASE_URL: JSON.stringify(env.SUPABASE_URL || 'https://peugomttfkbawdnwdhis.supabase.co'),
-        SUPABASE_KEY: JSON.stringify(env.SUPABASE_KEY || 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299')
+        API_KEY: env.API_KEY || '',
+        SUPABASE_URL: env.SUPABASE_URL || 'https://peugomttfkbawdnwdhis.supabase.co',
+        SUPABASE_KEY: env.SUPABASE_KEY || 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299'
       }
     },
     build: {
-      chunkSizeWarningLimit: 3000,
+      chunkSizeWarningLimit: 5000,
       rollupOptions: {
         output: {
           manualChunks: {
-            'react-vendor': ['react', 'react-dom'],
-            'ui-vendor': ['lucide-react', 'html2canvas'],
-            'excel-vendor': ['xlsx', 'jszip']
+            'vendor-react': ['react', 'react-dom'],
+            'vendor-utils': ['lucide-react', 'html2canvas'],
+            'vendor-excel': ['xlsx', 'jszip']
           }
         }
       }
