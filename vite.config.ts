@@ -7,18 +7,21 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      'process.env.API_KEY': JSON.stringify(env.API_KEY),
-      'process.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
-      'process.env.SUPABASE_KEY': JSON.stringify(env.SUPABASE_KEY)
+      // Ensure process.env is available for libraries that expect it
+      'process.env': {
+        API_KEY: JSON.stringify(env.API_KEY || ''),
+        SUPABASE_URL: JSON.stringify(env.SUPABASE_URL || 'https://peugomttfkbawdnwdhis.supabase.co'),
+        SUPABASE_KEY: JSON.stringify(env.SUPABASE_KEY || 'sb_publishable_NBY5lR6y__SoqsUHtlA1gQ_JcbmG299')
+      }
     },
     build: {
-      chunkSizeWarningLimit: 2000,
+      chunkSizeWarningLimit: 3000,
       rollupOptions: {
         output: {
           manualChunks: {
-            vendor: ['react', 'react-dom', 'lucide-react'],
-            excel: ['xlsx', 'jszip'],
-            canvas: ['html2canvas']
+            'react-vendor': ['react', 'react-dom'],
+            'ui-vendor': ['lucide-react', 'html2canvas'],
+            'excel-vendor': ['xlsx', 'jszip']
           }
         }
       }

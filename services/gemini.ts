@@ -1,11 +1,24 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
 
-// Initialize client with environment variable strictly following guidelines
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Safe access to API key to prevent runtime crashes
+const getApiKey = () => {
+  try {
+    return process.env.API_KEY || (window as any).process?.env?.API_KEY || '';
+  } catch {
+    return '';
+  }
+};
 
 export const generateProductDetails = async (productName: string) => {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    console.warn("Gemini API Key missing. AI features disabled.");
+    return null;
+  }
+
   try {
+    const ai = new GoogleGenAI({ apiKey });
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Generate a short, appetizing description (max 15 words) and a typical market price (number only) for a cafe product named "${productName}".`,
@@ -23,11 +36,9 @@ export const generateProductDetails = async (productName: string) => {
       }
     });
 
-    // Access .text property directly as a property, not a method.
     const text = response.text;
     if (!text) return null;
 
-    // Direct parsing of the response text as it is already requested in JSON format
     return JSON.parse(text.trim());
   } catch (error) {
     console.error("Gemini generation error:", error);
