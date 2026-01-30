@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { Save, Store, Image as ImageIcon, QrCode, Calculator, Database, Download, Trash2, AlertTriangle, Cloud, ExternalLink, Code, FileUp, CheckCircle2, Loader2, Sparkles, ToggleLeft, ToggleRight, FileSpreadsheet } from 'lucide-react';
 import { ShopDetails, Order, Customer, Product } from '../types';
@@ -102,42 +103,45 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
         if (type === 'product') {
             for (let i = 0; i < json.length; i++) {
                 const row = json[i];
+                const name = row.name || row.Name || row['Product Name'];
+                if (!name) continue;
+
                 const product: Product = {
-                    id: Date.now().toString() + i,
-                    name: row.name || row.Name || '',
-                    price: parseFloat(row.price || row.Price) || 0,
-                    stock: parseInt(row.stock || row.Stock) || 0,
-                    category: row.category || row.Category || 'General',
-                    description: row.description || row.Description || '',
-                    taxRate: row.taxRate || row.TaxRate || shopDetails.defaultTaxRate,
-                    minStockLevel: row.minStockLevel || row.MinStockLevel || 5
+                    id: `import-p-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
+                    name: String(name),
+                    price: parseFloat(row.price || row.Price || row['Unit Price']) || 0,
+                    stock: parseInt(row.stock || row.Stock || row['Quantity']) || 0,
+                    category: String(row.category || row.Category || 'General'),
+                    description: String(row.description || row.Description || ''),
+                    taxRate: parseFloat(row.taxRate || row.TaxRate || row['Tax Rate (%)']) || shopDetails.defaultTaxRate,
+                    minStockLevel: parseInt(row.minStockLevel || row.MinStockLevel || row['Min Stock Level']) || 5
                 };
 
-                if (product.name && product.price !== undefined) {
-                    await onAddProduct(product);
-                    importedCount++;
-                }
+                await onAddProduct(product);
+                importedCount++;
             }
         } else if (type === 'customer' && onAddCustomer) {
             for (let i = 0; i < json.length; i++) {
                 const row = json[i];
+                const name = row.name || row.Name || row['Customer Name'];
+                const phone = row.phone || row.Phone || row['Customer Phone'];
+                if (!name || !phone) continue;
+
                 const customer: Customer = {
-                    id: Date.now().toString() + i,
-                    name: row.name || row.Name || '',
-                    phone: String(row.phone || row.Phone || ''),
-                    place: row.place || row.Place || ''
+                    id: `import-c-${Date.now()}-${i}-${Math.floor(Math.random() * 1000)}`,
+                    name: String(name),
+                    phone: String(phone),
+                    place: String(row.place || row.Place || row['Location'] || '')
                 };
-                if (customer.name && customer.phone) {
-                    await onAddCustomer(customer);
-                    importedCount++;
-                }
+                await onAddCustomer(customer);
+                importedCount++;
             }
         }
 
         setImportStatus({ success: true, count: importedCount, type });
       } catch (err) {
         console.error("Excel import failed:", err);
-        alert(`Failed to parse Excel file for ${type}s.`);
+        alert(`Failed to parse Excel file for ${type}s. Please check your columns.`);
       } finally {
         setIsImporting(false);
         if (productFileInputRef.current) productFileInputRef.current.value = '';
@@ -195,7 +199,6 @@ export const ShopSettings: React.FC<ShopSettingsProps> = ({
       </div>
 
       <div className="space-y-8">
-        {/* Database connectivity helper */}
         <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
              <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -241,7 +244,6 @@ create table settings (id text primary key, name text, address text, phone text,
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Branding & Contact */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
               <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
                 <div className="p-2 bg-blue-100 text-blue-600 rounded-lg">
@@ -251,7 +253,6 @@ create table settings (id text primary key, name text, address text, phone text,
               </div>
 
               <div className="p-8 space-y-8">
-                {/* Receipt Toggle Options */}
                 <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="flex items-center justify-between">
                         <div>
@@ -274,7 +275,6 @@ create table settings (id text primary key, name text, address text, phone text,
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    {/* Logo Upload */}
                     <div className="flex flex-col gap-2">
                         <span className="text-sm font-medium text-slate-700">Receipt Logo Image</span>
                         <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
@@ -293,7 +293,6 @@ create table settings (id text primary key, name text, address text, phone text,
                         )}
                     </div>
 
-                    {/* Payment QR Upload */}
                     <div className="flex flex-col gap-2">
                         <span className="text-sm font-medium text-slate-700">Payment QR Code</span>
                         <div className="relative w-full h-40 bg-slate-50 rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center overflow-hidden hover:border-blue-300 transition-colors group cursor-pointer">
@@ -355,29 +354,27 @@ create table settings (id text primary key, name text, address text, phone text,
               </div>
           </div>
           
-          {/* Data Management & Bulk Operations */}
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
                <div className="p-6 border-b border-slate-100 bg-slate-50/50 flex items-center gap-3">
                   <div className="p-2 bg-green-100 text-green-600 rounded-lg">
                       <Database size={24} />
                   </div>
-                  <h3 className="font-semibold text-lg text-slate-800">Data Operations</h3>
+                  <h3 className="font-semibold text-lg text-slate-800">Excel Data Operations</h3>
               </div>
               <div className="p-8">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                      {/* Excel Import - Products */}
                       <div className="bg-emerald-50/30 p-6 rounded-2xl border border-emerald-100 relative overflow-hidden">
                           <h4 className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                              <FileSpreadsheet size={14} /> Bulk Import Products (Excel)
                           </h4>
                           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-                            Upload an Excel (.xlsx) file. Headers: <b>name, price, stock, category</b>.
+                            Upload an .xlsx file. Headers: <b>name, price, stock, category, description</b>.
                           </p>
                           
                           <input 
                             type="file" 
                             ref={productFileInputRef}
-                            accept=".xlsx,.xls,.csv" 
+                            accept=".xlsx,.xls" 
                             onChange={(e) => handleExcelImport(e, 'product')} 
                             className="hidden" 
                           />
@@ -389,29 +386,28 @@ create table settings (id text primary key, name text, address text, phone text,
                             className="w-full py-3 bg-white border border-emerald-200 text-emerald-800 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-emerald-50 hover:border-emerald-300 transition-all shadow-sm flex items-center justify-center gap-2"
                           >
                              {isImporting && importStatus?.type === 'product' ? <Loader2 className="animate-spin" size={16}/> : <FileUp size={14} className="text-emerald-500" />}
-                             {isImporting && importStatus?.type === 'product' ? 'Processing Products...' : 'Select Product File'}
+                             {isImporting && importStatus?.type === 'product' ? 'Processing...' : 'Select Excel File'}
                           </button>
 
                           {importStatus && importStatus.type === 'product' && (
                             <div className="mt-4 p-3 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
-                                <CheckCircle2 size={14} /> Imported {importStatus.count} products!
+                                <CheckCircle2 size={14} /> Success! {importStatus.count} products imported.
                             </div>
                           )}
                       </div>
 
-                      {/* Excel Import - Customers */}
                       <div className="bg-blue-50/30 p-6 rounded-2xl border border-blue-100 relative overflow-hidden">
                           <h4 className="text-[10px] font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2">
                              <FileSpreadsheet size={14} /> Bulk Import Customers (Excel)
                           </h4>
                           <p className="text-xs text-slate-600 mb-6 leading-relaxed">
-                            Upload an Excel (.xlsx) file. Headers: <b>name, phone, place</b>.
+                            Upload an .xlsx file. Headers: <b>name, phone, place</b>.
                           </p>
                           
                           <input 
                             type="file" 
                             ref={customerFileInputRef}
-                            accept=".xlsx,.xls,.csv" 
+                            accept=".xlsx,.xls" 
                             onChange={(e) => handleExcelImport(e, 'customer')} 
                             className="hidden" 
                           />
@@ -423,20 +419,19 @@ create table settings (id text primary key, name text, address text, phone text,
                             className="w-full py-3 bg-white border border-blue-200 text-blue-800 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-blue-50 hover:border-blue-300 transition-all shadow-sm flex items-center justify-center gap-2"
                           >
                              {isImporting && importStatus?.type === 'customer' ? <Loader2 className="animate-spin" size={16}/> : <FileUp size={14} className="text-blue-500" />}
-                             {isImporting && importStatus?.type === 'customer' ? 'Processing Customers...' : 'Select Customer File'}
+                             {isImporting && importStatus?.type === 'customer' ? 'Processing...' : 'Select Excel File'}
                           </button>
 
                           {importStatus && importStatus.type === 'customer' && (
                             <div className="mt-4 p-3 bg-green-100 text-green-700 rounded-lg text-xs font-bold flex items-center gap-2 animate-in slide-in-from-top-2">
-                                <CheckCircle2 size={14} /> Imported {importStatus.count} customers!
+                                <CheckCircle2 size={14} /> Success! {importStatus.count} customers imported.
                             </div>
                           )}
                       </div>
 
-                      {/* Clear & Factory Reset */}
                       <div className="bg-red-50/30 p-6 rounded-2xl border border-red-100 md:col-span-2">
                            <h4 className="text-[10px] font-black text-red-400 uppercase tracking-widest mb-4 flex items-center gap-2">
-                             <Trash2 size={14} /> Critical Actions
+                             <Trash2 size={14} /> System Reset
                           </h4>
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                               <button 
@@ -451,26 +446,26 @@ create table settings (id text primary key, name text, address text, phone text,
                                   onClick={() => handleReset('orders')}
                                   className="w-full py-3 bg-white border border-red-100 text-red-600 font-black uppercase tracking-widest text-[10px] rounded-xl hover:bg-red-50 transition-all"
                               >
-                                  Wipe Order History
+                                  Clear All Orders
                               </button>
                           </div>
                       </div>
                   </div>
 
-                  <div className="mt-8 pt-8 border-t border-slate-100 flex justify-between items-center">
+                  <div className="mt-8 pt-8 border-t border-slate-100 flex flex-col sm:flex-row justify-between items-center gap-4">
                       <div className="flex items-center gap-2">
                           <FileSpreadsheet size={18} className="text-emerald-600" />
-                          <span className="text-xs font-bold text-slate-500">Export All Data</span>
+                          <span className="text-xs font-bold text-slate-500">Cloud Data Backup (Excel)</span>
                       </div>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <button 
                             type="button"
                             onClick={() => {
                                 if (customers.length === 0) return alert("No customers to export.");
-                                const ws = XLSX.utils.json_to_sheet(customers.map(c => ({ Name: c.name, Phone: c.phone, Place: c.place })));
+                                const ws = XLSX.utils.json_to_sheet(customers.map(c => ({ 'Customer Name': c.name, 'Phone': c.phone, 'Place': c.place })));
                                 const wb = XLSX.utils.book_new();
-                                XLSX.utils.book_append_sheet(wb, ws, "Customers");
-                                XLSX.writeFile(wb, "Shop_Customers_Backup.xlsx");
+                                XLSX.utils.book_append_sheet(wb, ws, "Backup_Customers");
+                                XLSX.writeFile(wb, `Customers_Backup_${new Date().toISOString().split('T')[0]}.xlsx`);
                             }}
                             className="px-6 py-2 bg-slate-100 text-slate-700 font-bold text-xs rounded-lg hover:bg-slate-200 transition-colors"
                         >
